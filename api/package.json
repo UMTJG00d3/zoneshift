@@ -1,0 +1,16 @@
+{
+  "name": "zoneshift-api",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "start": "func start"
+  },
+  "dependencies": {
+    "@azure/functions": "^3.5.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.3.0",
+    "@types/node": "^18.0.0"
+  }
+}

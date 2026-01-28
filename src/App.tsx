@@ -5,6 +5,7 @@ import RecordTable from './components/RecordTable';
 import FormattedOutput from './components/FormattedOutput';
 import NSLookup from './components/NSLookup';
 import ComparisonTable from './components/ComparisonTable';
+import ConstellixPush from './components/ConstellixPush';
 import { parseZoneFile, ParsedZone } from './utils/zoneParser';
 
 const STEPS = [
@@ -12,6 +13,7 @@ const STEPS = [
   'Review & Export',
   'Current NS',
   'Compare',
+  'Push to Constellix',
 ];
 
 export default function App() {
@@ -35,6 +37,7 @@ export default function App() {
     if (target === 2 && parsed) setStep(2);
     if (target === 3 && parsed) setStep(3);
     if (target === 4 && parsed) setStep(4);
+    if (target === 5 && parsed) setStep(5);
   }
 
   return (
@@ -65,9 +68,14 @@ export default function App() {
               <button className="btn btn-ghost" onClick={() => goToStep(1)}>
                 Back
               </button>
-              <button className="btn btn-primary" onClick={() => setStep(3)}>
-                Next: Lookup NS
-              </button>
+              <div className="step-nav-right">
+                <button className="btn btn-secondary" onClick={() => setStep(5)}>
+                  Push to Constellix
+                </button>
+                <button className="btn btn-primary" onClick={() => setStep(3)}>
+                  Next: Lookup NS
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -96,6 +104,20 @@ export default function App() {
             <div className="step-nav">
               <button className="btn btn-ghost" onClick={() => goToStep(3)}>
                 Back
+              </button>
+              <button className="btn btn-secondary" onClick={() => setStep(5)}>
+                Push to Constellix
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 5 && parsed && (
+          <div className="step-content">
+            <ConstellixPush domain={parsed.origin} records={parsed.records} />
+            <div className="step-nav">
+              <button className="btn btn-ghost" onClick={() => goToStep(2)}>
+                Back to Review
               </button>
             </div>
           </div>

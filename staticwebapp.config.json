@@ -27,6 +27,14 @@
       "allowedRoles": ["anonymous"]
     },
     {
+      "route": "/api/health",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/proxy/*",
+      "allowedRoles": ["authenticated"]
+    },
+    {
       "route": "/*",
       "allowedRoles": ["authenticated"]
     }
@@ -39,7 +47,7 @@
   },
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/assets/*", "/*.svg", "/*.ico", "/.auth/*"]
+    "exclude": ["/assets/*", "/*.svg", "/*.ico", "/.auth/*", "/api/*"]
   },
   "globalHeaders": {
     "X-Content-Type-Options": "nosniff",

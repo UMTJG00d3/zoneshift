@@ -1,5 +1,7 @@
 # Dependencies
 node_modules/
+api/node_modules/
+api/dist/
 
 # Build
 dist/
