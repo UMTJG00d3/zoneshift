@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import ConstellixCredentials from './ConstellixCredentials';
 import { pushAllRecords, PushProgress, PushError } from '../utils/constellixApi';
 import { DnsRecord } from '../utils/zoneParser';
+import { getConstellixCredentials, saveConstellixCredentials } from '../utils/userSettings';
 
 interface ConstellixPushProps {
   domain: string;
@@ -15,6 +16,40 @@ export default function ConstellixPush({ domain, records }: ConstellixPushProps)
   const [secretKey, setSecretKey] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
   const [progress, setProgress] = useState<PushProgress | null>(null);
+  const [credentialsLoaded, setCredentialsLoaded] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  // Load saved credentials on mount
+  useEffect(() => {
+    getConstellixCredentials().then((creds) => {
+      if (creds) {
+        setApiKey(creds.apiKey);
+        setSecretKey(creds.secretKey);
+      }
+      setCredentialsLoaded(true);
+    });
+  }, []);
+
+  // Auto-save credentials when they change (debounced)
+  const saveCredentials = useCallback(async (key: string, secret: string) => {
+    if (!key.trim() || !secret.trim()) return;
+    setSaveStatus('saving');
+    const success = await saveConstellixCredentials(key.trim(), secret.trim());
+    setSaveStatus(success ? 'saved' : 'error');
+    // Reset status after a delay
+    setTimeout(() => setSaveStatus('idle'), 2000);
+  }, []);
+
+  useEffect(() => {
+    if (!credentialsLoaded) return;
+    if (!apiKey.trim() || !secretKey.trim()) return;
+
+    const timeout = setTimeout(() => {
+      saveCredentials(apiKey, secretKey);
+    }, 1000);
+
+    return () => clearTimeout(timeout);
+  }, [apiKey, secretKey, credentialsLoaded, saveCredentials]);
 
   const busy = phase === 'creating_domain' || phase === 'pushing_records';
   const canPush = apiKey.trim() && secretKey.trim() && !busy;
@@ -39,7 +74,7 @@ export default function ConstellixPush({ domain, records }: ConstellixPushProps)
       <h2>Push to Constellix</h2>
       <p className="subtitle">
         Create the domain and push all parsed records to Constellix DNS via API.
-        Credentials are sent through the server proxy and are never stored.
+        Credentials are saved to your account and synced across devices.
       </p>
 
       <ConstellixCredentials
@@ -48,6 +83,14 @@ export default function ConstellixPush({ domain, records }: ConstellixPushProps)
         onApiKeyChange={setApiKey}
         onSecretKeyChange={setSecretKey}
       />
+
+      {saveStatus !== 'idle' && (
+        <div className={`save-status save-status-${saveStatus}`}>
+          {saveStatus === 'saving' && 'Saving credentials...'}
+          {saveStatus === 'saved' && 'Credentials saved'}
+          {saveStatus === 'error' && 'Failed to save credentials'}
+        </div>
+      )}
 
       <div className="push-domain-info">
         <span className="label">Domain:</span>
