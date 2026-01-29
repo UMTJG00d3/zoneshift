@@ -6,6 +6,7 @@ import FormattedOutput from './components/FormattedOutput';
 import NSLookup from './components/NSLookup';
 import ComparisonTable from './components/ComparisonTable';
 import ConstellixPush from './components/ConstellixPush';
+import DomainManager from './components/DomainManager';
 import { parseZoneFile, ParsedZone } from './utils/zoneParser';
 
 const STEPS = [
@@ -16,15 +17,31 @@ const STEPS = [
   'Push to Constellix',
 ];
 
+type AppMode = 'import' | 'manage';
+
 export default function App() {
+  const [mode, setMode] = useState<AppMode>('import');
   const [step, setStep] = useState(1);
   const [parsed, setParsed] = useState<ParsedZone | null>(null);
   const [currentNS, setCurrentNS] = useState<string[]>([]);
+  const [manageDomain, setManageDomain] = useState('');
 
   function handleImport(content: string) {
     const result = parseZoneFile(content);
     setParsed(result);
     setStep(2);
+  }
+
+  function handleManageDomain(domain: string) {
+    setManageDomain(domain);
+    setMode('manage');
+  }
+
+  function handleBackToStart() {
+    setMode('import');
+    setStep(1);
+    setParsed(null);
+    setManageDomain('');
   }
 
   function handleNSFound(ns: string[]) {
@@ -47,17 +64,21 @@ export default function App() {
           <span className="logo">Z</span>
           ZoneShift
         </h1>
-        <span className="header-subtitle">DNS Migration Tool</span>
+        <span className="header-subtitle">DNS Migration &amp; Management</span>
       </header>
 
-      <StepIndicator currentStep={step} steps={STEPS} />
+      {mode === 'import' && <StepIndicator currentStep={step} steps={STEPS} />}
 
       <main className="app-main">
-        {step === 1 && (
-          <ZoneFileImport onImport={handleImport} />
+        {mode === 'manage' && (
+          <DomainManager domain={manageDomain} onBack={handleBackToStart} />
         )}
 
-        {step === 2 && parsed && (
+        {mode === 'import' && step === 1 && (
+          <ZoneFileImport onImport={handleImport} onManageDomain={handleManageDomain} />
+        )}
+
+        {mode === 'import' && step === 2 && parsed && (
           <div className="step-content">
             <FormattedOutput parsed={parsed} />
             <details className="record-details">
@@ -80,7 +101,7 @@ export default function App() {
           </div>
         )}
 
-        {step === 3 && parsed && (
+        {mode === 'import' && step === 3 && parsed && (
           <div className="step-content">
             <NSLookup domain={parsed.origin} onNSFound={handleNSFound} />
             <div className="step-nav">
@@ -94,7 +115,7 @@ export default function App() {
           </div>
         )}
 
-        {step === 4 && parsed && (
+        {mode === 'import' && step === 4 && parsed && (
           <div className="step-content">
             <ComparisonTable
               domain={parsed.origin}
@@ -112,7 +133,7 @@ export default function App() {
           </div>
         )}
 
-        {step === 5 && parsed && (
+        {mode === 'import' && step === 5 && parsed && (
           <div className="step-content">
             <ConstellixPush domain={parsed.origin} records={parsed.records} />
             <div className="step-nav">

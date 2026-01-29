@@ -2,11 +2,13 @@ import { useState, useRef, DragEvent } from 'react';
 
 interface ZoneFileImportProps {
   onImport: (content: string) => void;
+  onManageDomain: (domain: string) => void;
 }
 
-export default function ZoneFileImport({ onImport }: ZoneFileImportProps) {
+export default function ZoneFileImport({ onImport, onManageDomain }: ZoneFileImportProps) {
   const [dragging, setDragging] = useState(false);
   const [pasteContent, setPasteContent] = useState('');
+  const [manageDomain, setManageDomain] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleDragOver(e: DragEvent) {
@@ -90,6 +92,32 @@ export default function ZoneFileImport({ onImport }: ZoneFileImportProps) {
       >
         Parse Zone File
       </button>
+
+      <div className="divider">
+        <span>or manage existing Constellix domain</span>
+      </div>
+
+      <div className="manage-domain-section">
+        <input
+          type="text"
+          className="manage-domain-input"
+          placeholder="example.com"
+          value={manageDomain}
+          onChange={(e) => setManageDomain(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && manageDomain.trim()) {
+              onManageDomain(manageDomain.trim());
+            }
+          }}
+        />
+        <button
+          className="btn btn-secondary"
+          onClick={() => onManageDomain(manageDomain.trim())}
+          disabled={!manageDomain.trim()}
+        >
+          Manage Domain
+        </button>
+      </div>
     </div>
   );
 }
