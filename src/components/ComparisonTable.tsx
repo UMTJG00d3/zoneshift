@@ -21,7 +21,7 @@ const DEFAULT_SUBDOMAINS = [
 const QUERY_TYPES = ['A', 'AAAA', 'MX', 'TXT', 'CNAME', 'NS'];
 
 export default function ComparisonTable({ domain, currentNS, zoneRecords }: ComparisonTableProps) {
-  const [newNS, setNewNS] = useState('');
+  const [newNS, setNewNS] = useState('ns11.constellix.com');
   const [result, setResult] = useState<ComparisonResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
