@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import ConstellixCredentials from './ConstellixCredentials';
+import RecordManager from './RecordManager';
 import { pushAllRecords, PushProgress, PushError } from '../utils/constellixApi';
 import { DnsRecord } from '../utils/zoneParser';
 import { getConstellixCredentials, saveConstellixCredentials } from '../utils/userSettings';
@@ -139,6 +140,13 @@ export default function ConstellixPush({ domain, records }: ConstellixPushProps)
             <ErrorTable errors={progress.errors} />
           )}
         </div>
+      )}
+
+      {apiKey && secretKey && (
+        <RecordManager
+          domain={domain}
+          credentials={{ apiKey: apiKey.trim(), secretKey: secretKey.trim() }}
+        />
       )}
     </div>
   );

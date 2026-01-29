@@ -202,3 +202,191 @@ export async function pushAllRecords(
   onProgress(finalProgress);
   return finalProgress;
 }
+
+// --- Single Record Management ---
+
+export interface ConstellixRecord {
+  id: number;
+  name: string;
+  type: string;
+  ttl: number;
+  value: string;
+  // Raw data from API for updates
+  rawData?: unknown;
+}
+
+export async function getDomainId(
+  creds: ConstellixCredentials,
+  domain: string
+): Promise<{ id: number | null; error?: string }> {
+  const res = await proxyRequest(creds, 'GET', '/domains');
+  if (!res.success) {
+    return { id: null, error: `Failed to fetch domains: ${JSON.stringify(res.data)}` };
+  }
+
+  if (Array.isArray(res.data)) {
+    const found = res.data.find((d: unknown) => (d as { name: string }).name === domain);
+    if (found) {
+      return { id: (found as { id: number }).id };
+    }
+  }
+
+  return { id: null, error: `Domain "${domain}" not found in Constellix` };
+}
+
+export async function listRecords(
+  creds: ConstellixCredentials,
+  domainId: number
+): Promise<{ records: ConstellixRecord[]; error?: string }> {
+  const types = ['a', 'aaaa', 'cname', 'mx', 'txt', 'ns', 'srv', 'caa'];
+  const allRecords: ConstellixRecord[] = [];
+
+  for (const type of types) {
+    const res = await proxyRequest(creds, 'GET', `/domains/${domainId}/records/${type}`);
+    if (res.success && Array.isArray(res.data)) {
+      for (const rec of res.data) {
+        const r = rec as { id: number; name: string; ttl: number; roundRobin?: Array<{ value: string; level?: number }>; host?: string };
+        let value = '';
+
+        if (r.roundRobin && r.roundRobin.length > 0) {
+          value = r.roundRobin.map((rr) => {
+            if (rr.level !== undefined) return `${rr.level} ${rr.value}`;
+            return rr.value;
+          }).join(', ');
+        } else if (r.host) {
+          value = r.host;
+        }
+
+        allRecords.push({
+          id: r.id,
+          name: r.name || '@',
+          type: type.toUpperCase(),
+          ttl: r.ttl,
+          value,
+          rawData: rec,
+        });
+      }
+    }
+    // Small delay to avoid rate limits
+    await sleep(300);
+  }
+
+  return { records: allRecords };
+}
+
+export async function addRecord(
+  creds: ConstellixCredentials,
+  domainId: number,
+  name: string,
+  type: string,
+  ttl: number,
+  value: string
+): Promise<{ success: boolean; error?: string }> {
+  const typeLower = type.toLowerCase();
+  const path = `/domains/${domainId}/records/${typeLower}`;
+  const recordName = name === '@' ? '' : name;
+
+  let body: Record<string, unknown>;
+
+  switch (typeLower) {
+    case 'a':
+    case 'aaaa':
+    case 'txt':
+    case 'ns':
+      body = {
+        name: recordName,
+        ttl,
+        roundRobin: [{ value, disableFlag: false }],
+      };
+      break;
+    case 'cname':
+      body = {
+        name: recordName,
+        ttl,
+        host: value.endsWith('.') ? value : value + '.',
+      };
+      break;
+    case 'mx': {
+      const parts = value.split(/\s+/);
+      const level = parseInt(parts[0], 10) || 10;
+      const server = parts[1] || parts[0];
+      body = {
+        name: recordName,
+        ttl,
+        roundRobin: [{ value: server.endsWith('.') ? server : server + '.', level, disableFlag: false }],
+      };
+      break;
+    }
+    default:
+      return { success: false, error: `Unsupported record type: ${type}` };
+  }
+
+  const res = await proxyRequest(creds, 'POST', path, body);
+  if (res.success) return { success: true };
+  return { success: false, error: `HTTP ${res.status}: ${JSON.stringify(res.data)}` };
+}
+
+export async function updateRecord(
+  creds: ConstellixCredentials,
+  domainId: number,
+  recordId: number,
+  type: string,
+  name: string,
+  ttl: number,
+  value: string
+): Promise<{ success: boolean; error?: string }> {
+  const typeLower = type.toLowerCase();
+  const path = `/domains/${domainId}/records/${typeLower}/${recordId}`;
+  const recordName = name === '@' ? '' : name;
+
+  let body: Record<string, unknown>;
+
+  switch (typeLower) {
+    case 'a':
+    case 'aaaa':
+    case 'txt':
+    case 'ns':
+      body = {
+        name: recordName,
+        ttl,
+        roundRobin: [{ value, disableFlag: false }],
+      };
+      break;
+    case 'cname':
+      body = {
+        name: recordName,
+        ttl,
+        host: value.endsWith('.') ? value : value + '.',
+      };
+      break;
+    case 'mx': {
+      const parts = value.split(/\s+/);
+      const level = parseInt(parts[0], 10) || 10;
+      const server = parts[1] || parts[0];
+      body = {
+        name: recordName,
+        ttl,
+        roundRobin: [{ value: server.endsWith('.') ? server : server + '.', level, disableFlag: false }],
+      };
+      break;
+    }
+    default:
+      return { success: false, error: `Unsupported record type: ${type}` };
+  }
+
+  const res = await proxyRequest(creds, 'PUT', path, body);
+  if (res.success) return { success: true };
+  return { success: false, error: `HTTP ${res.status}: ${JSON.stringify(res.data)}` };
+}
+
+export async function deleteRecord(
+  creds: ConstellixCredentials,
+  domainId: number,
+  recordId: number,
+  type: string
+): Promise<{ success: boolean; error?: string }> {
+  const path = `/domains/${domainId}/records/${type.toLowerCase()}/${recordId}`;
+  const res = await proxyRequest(creds, 'DELETE', path);
+  if (res.success) return { success: true };
+  return { success: false, error: `HTTP ${res.status}: ${JSON.stringify(res.data)}` };
+}
