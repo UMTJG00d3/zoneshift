@@ -119,3 +119,74 @@ function deduplicateRecords(records: ResolvedRecord[]): ResolvedRecord[] {
     return true;
   });
 }
+
+// Query a specific nameserver via API
+async function nsLookup(
+  nameserver: string,
+  domain: string,
+  type: string,
+): Promise<ResolvedRecord[]> {
+  const res = await fetch('/api/dns/query', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nameserver, domain, type }),
+  });
+
+  if (!res.ok) {
+    return [];
+  }
+
+  const data = await res.json();
+  if (!data.success || !Array.isArray(data.records)) {
+    return [];
+  }
+
+  return data.records.map((r: { name: string; type: string; ttl: number; value: string }) => ({
+    name: r.name.replace(/\.$/, ''),
+    type: r.type,
+    ttl: r.ttl,
+    value: r.value.replace(/\.$/, ''),
+  }));
+}
+
+export async function queryAllRecordsFromNS(
+  nameserver: string,
+  domain: string,
+  subdomains: string[],
+  types: string[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<ResolvedRecord[]> {
+  const results: ResolvedRecord[] = [];
+  const queries: { fqdn: string; type: string }[] = [];
+
+  for (const sub of subdomains) {
+    const fqdn = sub === '@' ? domain : `${sub}.${domain}`;
+    for (const type of types) {
+      queries.push({ fqdn, type });
+    }
+  }
+
+  let done = 0;
+  const total = queries.length;
+
+  // Run in batches to avoid overwhelming the API
+  const batchSize = 5;
+  for (let i = 0; i < queries.length; i += batchSize) {
+    const batch = queries.slice(i, i + batchSize);
+    const batchResults = await Promise.all(
+      batch.map(async ({ fqdn, type }) => {
+        try {
+          return await nsLookup(nameserver, fqdn, type);
+        } catch {
+          return [];
+        } finally {
+          done++;
+          onProgress?.(done, total);
+        }
+      }),
+    );
+    results.push(...batchResults.flat());
+  }
+
+  return deduplicateRecords(results);
+}

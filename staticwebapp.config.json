@@ -35,6 +35,10 @@
       "allowedRoles": ["authenticated"]
     },
     {
+      "route": "/api/dns/*",
+      "allowedRoles": ["authenticated"]
+    },
+    {
       "route": "/*",
       "allowedRoles": ["authenticated"]
     }

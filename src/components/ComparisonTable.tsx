@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { queryAllRecords } from '../utils/dnsLookup';
+import { queryAllRecords, queryAllRecordsFromNS } from '../utils/dnsLookup';
 import { compareRecords, ComparisonResult, ComparisonRow } from '../utils/recordComparison';
 import { DnsRecord } from '../utils/zoneParser';
 
@@ -55,9 +55,9 @@ export default function ComparisonTable({ domain, currentNS, zoneRecords }: Comp
         (done, total) => setProgress((p) => ({ ...p, done, total: total * 2 })),
       );
 
-      // Query new NS — using the same DoH approach (queries public DNS which
-      // should resolve from the new NS once records are loaded)
-      const newRecords = await queryAllRecords(
+      // Query new NS directly via API
+      const newRecords = await queryAllRecordsFromNS(
+        newNS.trim(),
         domain,
         subdomains,
         QUERY_TYPES,
