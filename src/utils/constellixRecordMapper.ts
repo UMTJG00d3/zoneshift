@@ -42,16 +42,31 @@ function mapGroup(
   const ttl = first.ttl;
 
   switch (type) {
-    case 'A':
-    case 'AAAA':
+    case 'A': {
+      const validRecs = recs.filter((r) => isValidIPv4(r.value));
+      if (validRecs.length === 0) return null;
       return {
         name,
-        type: type.toLowerCase(),
+        type: 'a',
         ttl,
         body: {
-          roundRobin: recs.map((r) => ({ value: r.value, disableFlag: false })),
+          roundRobin: validRecs.map((r) => ({ value: r.value, disableFlag: false })),
         },
       };
+    }
+
+    case 'AAAA': {
+      const validRecs = recs.filter((r) => isValidIPv6(r.value));
+      if (validRecs.length === 0) return null;
+      return {
+        name,
+        type: 'aaaa',
+        ttl,
+        body: {
+          roundRobin: validRecs.map((r) => ({ value: r.value, disableFlag: false })),
+        },
+      };
+    }
 
     case 'CNAME':
       return {
@@ -149,6 +164,8 @@ function mapGroup(
 
 function ensureFqdn(value: string, origin: string): string {
   const trimmed = value.replace(/\.$/, '');
+  // @ means root domain
+  if (trimmed === '@') return `${origin}.`;
   // If already has a dot, treat as FQDN
   if (trimmed.includes('.')) return trimmed + '.';
   // Otherwise, append origin
@@ -167,4 +184,19 @@ function stripQuotes(value: string): string {
     return parts.length > 0 ? parts.join('') : value.replace(/"/g, '');
   }
   return value;
+}
+
+function isValidIPv4(value: string): boolean {
+  const parts = value.split('.');
+  if (parts.length !== 4) return false;
+  return parts.every((p) => {
+    const num = parseInt(p, 10);
+    return !isNaN(num) && num >= 0 && num <= 255 && String(num) === p;
+  });
+}
+
+function isValidIPv6(value: string): boolean {
+  // Basic IPv6 validation - allows full and compressed forms
+  const ipv6Regex = /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^(([0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4})?::([0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}$/;
+  return ipv6Regex.test(value);
 }
