@@ -69,10 +69,10 @@ export async function reverseLookup(ip: string): Promise<string | null> {
     if (parts.length !== 4) return null;
 
     const reversed = parts.reverse().join('.') + '.in-addr.arpa';
-    const result = await dohLookup(reversed, 'PTR');
+    const answers = await dohLookup(reversed, 'PTR');
 
-    if (result.Answer && result.Answer.length > 0) {
-      return result.Answer[0].data;
+    if (answers && answers.length > 0) {
+      return answers[0].data;
     }
     return null;
   } catch {
@@ -205,16 +205,16 @@ export async function analyzeCnameRecords(
     onProgress?.(`Checking CNAME target: ${record.value}...`);
 
     try {
-      const result = await dohLookup(record.value, 'A');
+      const answers = await dohLookup(record.value, 'A');
 
-      if (result.Status === 3) {
-        // NXDOMAIN - dangling CNAME
+      if (!answers || answers.length === 0) {
+        // No A records found - could be dangling CNAME
         findings.push({
           id: generateFindingId(),
           severity: 'critical',
           type: 'DANGLING_CNAME',
           records: [record],
-          issue: `CNAME target "${record.value}" does not exist (NXDOMAIN)`,
+          issue: `CNAME target "${record.value}" has no A records`,
           recommendation: `Remove dangling CNAME record - subdomain takeover risk`,
         });
       }
