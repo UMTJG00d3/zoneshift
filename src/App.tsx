@@ -7,7 +7,10 @@ import NSLookup from './components/NSLookup';
 import ComparisonTable from './components/ComparisonTable';
 import ConstellixPush from './components/ConstellixPush';
 import DomainManager from './components/DomainManager';
+import BulkChanges from './components/BulkChanges';
+import SecurityScanner from './components/SecurityScanner';
 import { parseZoneFile, ParsedZone } from './utils/zoneParser';
+import { exportForOversite } from './utils/oversiteExport';
 
 const STEPS = [
   'Import Zone File',
@@ -17,9 +20,11 @@ const STEPS = [
   'Push to Constellix',
 ];
 
+type AppTab = 'import' | 'bulk-changes' | 'security-scan';
 type AppMode = 'import' | 'manage';
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState<AppTab>('import');
   const [mode, setMode] = useState<AppMode>('import');
   const [step, setStep] = useState(1);
   const [parsed, setParsed] = useState<ParsedZone | null>(null);
@@ -67,18 +72,47 @@ export default function App() {
         <span className="header-subtitle">DNS Migration &amp; Management</span>
       </header>
 
-      {mode === 'import' && <StepIndicator currentStep={step} steps={STEPS} />}
+      {/* Tab Navigation */}
+      <nav className="tab-nav">
+        <button
+          className={`tab-btn ${activeTab === 'import' ? 'tab-btn-active' : ''}`}
+          onClick={() => setActiveTab('import')}
+        >
+          Import &amp; Compare
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'bulk-changes' ? 'tab-btn-active' : ''}`}
+          onClick={() => setActiveTab('bulk-changes')}
+        >
+          Bulk Changes
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'security-scan' ? 'tab-btn-active' : ''}`}
+          onClick={() => setActiveTab('security-scan')}
+        >
+          Security Scan
+        </button>
+      </nav>
+
+      {activeTab === 'import' && mode === 'import' && <StepIndicator currentStep={step} steps={STEPS} />}
 
       <main className="app-main">
-        {mode === 'manage' && (
+        {/* Bulk Changes Tab */}
+        {activeTab === 'bulk-changes' && <BulkChanges />}
+
+        {/* Security Scan Tab */}
+        {activeTab === 'security-scan' && <SecurityScanner />}
+
+        {/* Import Tab */}
+        {activeTab === 'import' && mode === 'manage' && (
           <DomainManager domain={manageDomain} onBack={handleBackToStart} />
         )}
 
-        {mode === 'import' && step === 1 && (
+        {activeTab === 'import' && mode === 'import' && step === 1 && (
           <ZoneFileImport onImport={handleImport} onManageDomain={handleManageDomain} />
         )}
 
-        {mode === 'import' && step === 2 && parsed && (
+        {activeTab === 'import' && mode === 'import' && step === 2 && parsed && (
           <div className="step-content">
             <FormattedOutput parsed={parsed} />
             <details className="record-details">
@@ -101,7 +135,7 @@ export default function App() {
           </div>
         )}
 
-        {mode === 'import' && step === 3 && parsed && (
+        {activeTab === 'import' && mode === 'import' && step === 3 && parsed && (
           <div className="step-content">
             <NSLookup domain={parsed.origin} onNSFound={handleNSFound} />
             <div className="step-nav">
@@ -115,7 +149,7 @@ export default function App() {
           </div>
         )}
 
-        {mode === 'import' && step === 4 && parsed && (
+        {activeTab === 'import' && mode === 'import' && step === 4 && parsed && (
           <div className="step-content">
             <ComparisonTable
               domain={parsed.origin}
@@ -133,7 +167,7 @@ export default function App() {
           </div>
         )}
 
-        {mode === 'import' && step === 5 && parsed && (
+        {activeTab === 'import' && mode === 'import' && step === 5 && parsed && (
           <div className="step-content">
             <ConstellixPush domain={parsed.origin} records={parsed.records} />
             <div className="step-nav">
@@ -147,6 +181,9 @@ export default function App() {
 
       <footer className="app-footer">
         <span>ZoneShift &mdash; Umetech MSP</span>
+        <button className="btn btn-ghost btn-sm export-btn" onClick={exportForOversite}>
+          Export for Over-Site
+        </button>
       </footer>
     </div>
   );
