@@ -1,243 +1,79 @@
-# CLAUDE.md — ZoneShift
+# CLAUDE.md
 
-This file provides guidance to Claude Code when working with this project.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-**ZoneShift** is a web-based DNS migration verification tool for MSP use. It helps migrate DNS zones from GoDaddy (or other providers) to Constellix by:
-1. Parsing zone file exports (BIND format)
-2. Reformatting them for Constellix import (removing SOA/NS records)
-3. Verifying records match between old and new nameservers before NS cutover
+ZoneShift is a client-side DNS migration verification tool for Umetech MSP. It parses GoDaddy BIND zone file exports, reformats them for Constellix import (stripping SOA/root NS records), and compares DNS records between old and new nameservers via DNS-over-HTTPS before NS cutover.
 
-**Context:** This tool is for Umetech MSP (Jeremiah). He migrates client DNS from GoDaddy to Constellix and needs to reformat exports and verify all records match before updating NS at the registrar.
-
-## Tech Stack
-
-- **Frontend:** React + TypeScript + Vite (single-page app, no backend)
-- **DNS Lookups:** DNS-over-HTTPS (Google: `https://dns.google/resolve`)
-- **Deployment:** Azure Static Web App via GitHub Actions
-- **Domain:** `zoneshift.umetech.com` (or subdomain of Umetech Azure setup)
+Live at https://zoneshift.umetech.net. No backend — all logic runs in the browser.
 
 ## Commands
 
 ```bash
 npm install          # Install dependencies
-npm run dev          # Start dev server (Vite)
-npm run build        # Build to dist/
-npm run lint         # ESLint check
+npm run dev          # Start Vite dev server
+npm run build        # TypeScript check + Vite build to dist/
+npm run lint         # ESLint
 ```
 
-## Project Structure
+**Restricted shell note:** The UMT dev environment has a locked-down PATH (`/home/jgoode/bin` only). `npm create`, `npx`, and postinstall scripts may fail because `sh` is not in PATH. Workarounds:
+- `npm install --ignore-scripts` then verify modules manually
+- Run Vite/tsc directly via `node node_modules/typescript/bin/tsc` or `node build.mjs`
+
+## Architecture
+
+**4-step wizard** orchestrated by `App.tsx`:
 
 ```
-zoneshift/
-├── .github/
-│   └── workflows/
-│       └── azure-static-web-apps.yml
-├── src/
-│   ├── App.tsx
-│   ├── main.tsx
-│   ├── index.css
-│   ├── components/
-│   │   ├── ZoneFileImport.tsx      # Step 1: drag-drop or paste zone file
-│   │   ├── RecordTable.tsx          # Parsed records display table
-│   │   ├── FormattedOutput.tsx      # Step 2: Constellix-ready output
-│   │   ├── NSLookup.tsx             # Step 3: Current NS detection
-│   │   ├── ComparisonTable.tsx      # Step 4: Old vs New NS comparison
-│   │   └── StepIndicator.tsx        # Wizard step progress
-│   ├── utils/
-│   │   ├── zoneParser.ts            # BIND zone file parser
-│   │   ├── dnsLookup.ts             # DNS-over-HTTPS queries
-│   │   └── recordComparison.ts      # Record matching/comparison logic
-│   └── styles/
-│       └── theme.css
-├── public/
-│   └── favicon.svg
-├── index.html
-├── package.json
-├── vite.config.ts
-└── CLAUDE.md
+ZoneFileImport → parseZoneFile() → ParsedZone
+                                      ↓
+FormattedOutput ← formatForConstellix(parsed)
+RecordTable     ← parsed.records
+                                      ↓
+NSLookup        → lookupNS(domain) → currentNS[]
+                                      ↓
+ComparisonTable → queryAllRecords() on both NS → compareRecords() → ComparisonResult
 ```
 
-## Core Features
+State lives in `App.tsx`: `step` (1-4), `parsed` (ParsedZone | null), `currentNS` (string[]). Components receive data via props and report back through callbacks (`onImport`, `onNSFound`).
 
-### 1. Zone File Import & Parsing
-- Accept GoDaddy DNS zone file export (drag-drop or paste)
-- Parse BIND-format zone files
-- Extract domain name from `$ORIGIN` directive
-- Parse all record types: A, AAAA, MX, TXT, CNAME, NS, SRV, CAA
-- **Automatically remove for Constellix import:**
-  - SOA record (including multi-line with parentheses)
-  - Root NS records (`@ IN NS ...`)
-  - Header comments from GoDaddy export
-- Display parsed records in a table for review
+### Utils (the core logic)
 
-### 2. Constellix-Formatted Output
-- Generate clean BIND-format zone file ready for Constellix import
-- Keep `$ORIGIN` directive
-- Group records by type with section comments
-- Provide: Copy to clipboard button, Download as .txt file button
-- **Constellix requirements:** BIND9 format, no SOA, no root NS records
+- **`zoneParser.ts`** — `parseZoneFile()` parses BIND format, handles multi-line SOA (paren depth tracking), strips SOA + root NS + header comments. `formatForConstellix()` outputs clean BIND grouped by record type.
+- **`dnsLookup.ts`** — `dohLookup()` queries Google DoH (`https://dns.google/resolve`). `queryAllRecords()` batches queries (5 concurrent) across subdomains x record types, deduplicates results.
+- **`recordComparison.ts`** — `compareRecords()` groups by name+type, normalizes values (strip trailing dots, quotes, lowercase), returns rows with match/mismatch/missing_new/new status.
 
-### 3. Current NS Lookup
-- Auto-detect current authoritative nameservers for the domain
-- Display current NS records
-- Use DNS-over-HTTPS (Google: `https://dns.google/resolve`) for lookups
+### Key types
 
-### 4. DNS Comparison Tool
-- Input field for new Constellix nameserver (e.g., `ns11.constellix.com`)
-- Query both old NS and new NS for all record types
-- Build comparison table showing:
-  - Record name, type, TTL
-  - Value from old NS / Value from new NS
-  - Match status: Match, Mismatch, Missing, New
-- Highlight mismatches prominently
-- Show summary: X of Y records match
+- `DnsRecord` — parsed zone record: name, ttl, class, type, value
+- `ParsedZone` — origin string + DnsRecord[]
+- `ResolvedRecord` — live DNS result: name, type, ttl, value
+- `ComparisonRow` — old/new values + MatchStatus
+- `ComparisonResult` — rows[] + match/mismatch/missing counts
 
-### 5. Records to Query
-For comprehensive comparison, query these subdomains (plus any found in zone file):
-- `@` (root), `www`, `mail`, `ftp`
-- `cpanel`, `webmail`, `webdisk`, `whm` (hosting records)
-- `autodiscover` (Exchange/M365)
-- `enterpriseenrollment`, `enterpriseregistration` (Intune)
-- `selector1._domainkey`, `selector2._domainkey` (DKIM)
-- `_dmarc`
-- Query types: A, AAAA, MX, TXT, CNAME, NS
+## DNS Comparison Subdomains
 
-## DNS-over-HTTPS Implementation
+ComparisonTable queries a default set plus any found in the zone file:
+`@`, `www`, `mail`, `ftp`, `cpanel`, `webmail`, `webdisk`, `whm`, `autodiscover`, `enterpriseenrollment`, `enterpriseregistration`, `selector1._domainkey`, `selector2._domainkey`, `_dmarc`
 
-```typescript
-const dohLookup = async (domain: string, type: string) => {
-  const url = `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=${type}`;
-  const response = await fetch(url, {
-    headers: { 'Accept': 'application/dns-json' }
-  });
-  const data = await response.json();
-  return data.Answer || [];
-};
-```
+Query types: A, AAAA, MX, TXT, CNAME, NS
 
-## Zone File Parsing Notes
-- Handle multi-line SOA records (track parentheses depth)
-- Normalize record values for comparison (remove trailing dots, quotes, lowercase)
-- Handle TXT record concatenation (multiple quoted strings)
-- Skip comment-only lines but preserve record type section comments for output
+## Constellix Import Rules
 
-## UI/UX Requirements
-- **Theme:** Dark, professional MSP utility aesthetic
-- **Font:** Monospace (JetBrains Mono, Fira Code, or similar)
-- **Colors:** Dark background (#0d1117), green for success (#238636), red for errors (#da3633), blue for info (#1f6feb)
-- **Layout:** Step-by-step wizard flow:
-  1. Import Zone File
-  2. Review & Download Formatted Output
-  3. Lookup Current Nameservers
-  4. Run Comparison
-- Progress indicators for DNS lookups
-- Mobile-responsive
+Output must be BIND9 format with: `$ORIGIN` directive kept, SOA removed, root NS records (`@ IN NS`) removed, records grouped by type with `;` section comments.
 
-## Step Flow
+## UI Theme
 
-```
-Step 1: Import
-  [Drag & Drop Zone File] or [Paste Zone Content]
-          ↓
-Step 2: Review & Export
-  Domain: almanufacturing.com
-  Records Found: 24
-  [Formatted zone file preview]
-  [Copy to Clipboard] [Download .txt]
-          ↓
-Step 3: Current Nameservers
-  [Lookup Current NS]
-  Current NS: ns57.domaincontrol.com, ns58.domaincontrol.com
-          ↓
-Step 4: Compare DNS Records
-  New Constellix NS: [ns11.constellix.com]
-  [Run Comparison]
-  Comparison table with match/mismatch indicators
-  Summary: 24/24 records match — Ready for NS cutover!
-```
-
-## Sample GoDaddy Zone File (for testing)
-
-```
-; Domain: almanufacturing.com
-; Exported (y-m-d hh:mm:ss): 2026-01-28 10:58:45
-;
-; This file is intended for use for informational and archival
-; purposes ONLY and MUST be edited before use on a production
-; DNS server.
-
-$ORIGIN almanufacturing.com.
-
-; SOA Record
-@	3600	 IN 	SOA	ns57.domaincontrol.com.	dns.jomax.net. (
-					2026012105
-					28800
-					7200
-					604800
-					3600
-					)
-
-; A Record
-@	600	 IN 	A	65.181.116.249
-cpanel	600	 IN 	A	65.181.116.249
-webmail	600	 IN 	A	65.181.116.249
-
-; TXT Record
-@	3600	 IN 	TXT	"v=spf1 +a +mx include:spf.protection.outlook.com ~all"
-@	3600	 IN 	TXT	"v=verifydomain MS=6933447"
-
-; CNAME Record
-autodiscover	3600	 IN 	CNAME	autodiscover.outlook.com.
-www	3600	 IN 	CNAME	@
-
-; NS Record
-@	3600	 IN 	NS	ns57.domaincontrol.com.
-@	3600	 IN 	NS	ns58.domaincontrol.com.
-
-; MX Record
-@	3600	 IN 	MX	10	almanufacturing-com.p10.mxthunder.com.
-@	3600	 IN 	MX	20	almanufacturing-com.p20.mxthunder.net.
-```
-
-## Expected Constellix Output (after parsing)
-
-```
-$ORIGIN almanufacturing.com.
-; A Record
-@	600	 IN 	A	65.181.116.249
-cpanel	600	 IN 	A	65.181.116.249
-webmail	600	 IN 	A	65.181.116.249
-; TXT Record
-@	3600	 IN 	TXT	"v=spf1 +a +mx include:spf.protection.outlook.com ~all"
-@	3600	 IN 	TXT	"v=verifydomain MS=6933447"
-; CNAME Record
-autodiscover	3600	 IN 	CNAME	autodiscover.outlook.com.
-www	3600	 IN 	CNAME	@
-; MX Record
-@	3600	 IN 	MX	10	almanufacturing-com.p10.mxthunder.com.
-@	3600	 IN 	MX	20	almanufacturing-com.p20.mxthunder.net.
-```
-
-SOA and root NS records are removed, header comments stripped.
+Dark palette (`#0d1117` bg), green `#238636` success, red `#da3633` errors, blue `#1f6feb` info. System monospace font stack. All styles in `src/index.css`. Mobile breakpoint at 640px.
 
 ## Deployment
 
-Deploy as Azure Static Web App:
-- Use GitHub Actions for CI/CD
-- No API/backend needed (all client-side)
-- GitHub repo: `umetech/zoneshift` (or appropriate org)
-
-## Initial Setup Commands
-
-```bash
-npm create vite@latest . -- --template react-ts
-npm install
-git init
-gh repo create umetech/zoneshift --public --source=. --remote=origin
-```
+- **Azure Static Web App** in `MissionControl` resource group (Free tier)
+- **GitHub Actions** workflow: `.github/workflows/azure-static-web-apps-calm-flower-0a61c0010.yml` (auto-generated by Azure)
+- **Repo**: `UMTJG00d3/zoneshift` on GitHub
+- Pushes to `main` auto-deploy. PRs get staging environments.
 
 ## Related Projects
 
-- **UMT-HUD** (`/root/projects/UMT-HUD`) — Mission Control dashboard at https://cloudops.umetech.net — has a "Tools" menu linking to this tool
+- **UMT-HUD** (`/root/projects/UMT-HUD`) — Mission Control dashboard at https://cloudops.umetech.net — "Tools" menu links to this tool
