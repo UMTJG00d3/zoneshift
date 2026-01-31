@@ -879,6 +879,192 @@ h3 {
   font-size: 0.85rem;
 }
 
+/* Pending Changes Panel */
+.pending-changes-panel {
+  background: var(--bg-secondary);
+  border: 2px solid var(--yellow);
+  border-radius: 6px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.pending-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.pending-header h4 {
+  margin: 0;
+  color: var(--yellow);
+  font-size: 0.95rem;
+}
+
+.pending-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.pending-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.pending-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-primary);
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.pending-item.pending-add {
+  border-left: 3px solid var(--green);
+}
+
+.pending-item.pending-edit {
+  border-left: 3px solid var(--blue);
+}
+
+.pending-item.pending-delete {
+  border-left: 3px solid var(--red);
+}
+
+.pending-action {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.pending-action.action-add {
+  background: rgba(35, 134, 54, 0.2);
+  color: var(--green-bright);
+}
+
+.pending-action.action-edit {
+  background: rgba(31, 111, 235, 0.2);
+  color: var(--blue-bright);
+}
+
+.pending-action.action-delete {
+  background: rgba(218, 54, 51, 0.2);
+  color: var(--red-bright);
+}
+
+.pending-name {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.pending-value {
+  color: var(--text-muted);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Record table row pending states */
+.row-pending {
+  opacity: 0.7;
+}
+
+.row-pending-delete {
+  text-decoration: line-through;
+  background: rgba(218, 54, 51, 0.1);
+}
+
+.row-pending-edit {
+  background: rgba(31, 111, 235, 0.1);
+}
+
+.pending-badge {
+  font-size: 0.65rem;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.pending-badge-delete {
+  background: rgba(218, 54, 51, 0.3);
+  color: var(--red-bright);
+}
+
+.pending-badge-edit {
+  background: rgba(31, 111, 235, 0.3);
+  color: var(--blue-bright);
+}
+
+/* Record filters */
+.record-filters {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.filter-select,
+.filter-input {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  padding: 0.35rem 0.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+}
+
+.filter-input {
+  width: 180px;
+}
+
+.filter-select:focus,
+.filter-input:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
+.record-count {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* Credentials status */
+.creds-status {
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  margin-bottom: 1rem;
+}
+
+.creds-status .creds-ok {
+  color: var(--green-bright);
+}
+
+.creds-status .creds-missing {
+  color: var(--yellow);
+}
+
+.creds-status a {
+  color: var(--blue-bright);
+  text-decoration: underline;
+}
+
+.creds-status a:hover {
+  color: var(--blue);
+}
+
 /* Domain Manager */
 .domain-manager {
   display: flex;

@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
-import ConstellixCredentials from './ConstellixCredentials';
+import { useState, useEffect } from 'react';
 import RecordManager from './RecordManager';
-import { getConstellixCredentials, saveConstellixCredentials } from '../utils/userSettings';
+import { getConstellixCredentials } from '../utils/userSettings';
+import { ConstellixCredentials } from '../utils/constellixApi';
 
 interface DomainManagerProps {
   domain: string;
@@ -9,43 +9,22 @@ interface DomainManagerProps {
 }
 
 export default function DomainManager({ domain, onBack }: DomainManagerProps) {
-  const [apiKey, setApiKey] = useState('');
-  const [secretKey, setSecretKey] = useState('');
-  const [credentialsLoaded, setCredentialsLoaded] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [creds, setCreds] = useState<ConstellixCredentials | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // Load saved credentials on mount
   useEffect(() => {
-    getConstellixCredentials().then((creds) => {
-      if (creds) {
-        setApiKey(creds.apiKey);
-        setSecretKey(creds.secretKey);
-      }
-      setCredentialsLoaded(true);
-    });
+    setLoading(true);
+    getConstellixCredentials()
+      .then((saved) => {
+        if (saved) {
+          setCreds(saved);
+        }
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  // Auto-save credentials when they change (debounced)
-  const saveCredentials = useCallback(async (key: string, secret: string) => {
-    if (!key.trim() || !secret.trim()) return;
-    setSaveStatus('saving');
-    const success = await saveConstellixCredentials(key.trim(), secret.trim());
-    setSaveStatus(success ? 'saved' : 'error');
-    setTimeout(() => setSaveStatus('idle'), 2000);
-  }, []);
-
-  useEffect(() => {
-    if (!credentialsLoaded) return;
-    if (!apiKey.trim() || !secretKey.trim()) return;
-
-    const timeout = setTimeout(() => {
-      saveCredentials(apiKey, secretKey);
-    }, 1000);
-
-    return () => clearTimeout(timeout);
-  }, [apiKey, secretKey, credentialsLoaded, saveCredentials]);
-
-  const hasCredentials = apiKey.trim() && secretKey.trim();
+  const hasCreds = creds !== null;
 
   return (
     <div className="domain-manager">
@@ -60,29 +39,33 @@ export default function DomainManager({ domain, onBack }: DomainManagerProps) {
         View, add, edit, and delete DNS records for this domain in Constellix.
       </p>
 
-      <ConstellixCredentials
-        apiKey={apiKey}
-        secretKey={secretKey}
-        onApiKeyChange={setApiKey}
-        onSecretKeyChange={setSecretKey}
-      />
+      {/* Credentials Status */}
+      <div className="creds-status">
+        {loading ? (
+          <span className="muted">Loading credentials...</span>
+        ) : hasCreds ? (
+          <span className="creds-ok">Constellix API credentials configured</span>
+        ) : (
+          <span className="creds-missing">
+            No Constellix credentials configured.{' '}
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                window.dispatchEvent(new CustomEvent('navigate-tab', { detail: 'settings' }));
+              }}
+            >
+              Go to Settings
+            </a>{' '}
+            to add your API keys.
+          </span>
+        )}
+      </div>
 
-      {saveStatus !== 'idle' && (
-        <div className={`save-status save-status-${saveStatus}`}>
-          {saveStatus === 'saving' && 'Saving credentials...'}
-          {saveStatus === 'saved' && 'Credentials saved'}
-          {saveStatus === 'error' && 'Failed to save credentials'}
-        </div>
-      )}
-
-      {!hasCredentials && (
-        <p className="muted">Enter your Constellix API credentials above to manage records.</p>
-      )}
-
-      {hasCredentials && (
+      {hasCreds && (
         <RecordManager
           domain={domain}
-          credentials={{ apiKey: apiKey.trim(), secretKey: secretKey.trim() }}
+          credentials={creds}
         />
       )}
     </div>

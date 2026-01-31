@@ -16,7 +16,20 @@ interface RecordManagerProps {
 
 type Mode = 'idle' | 'loading' | 'viewing' | 'adding' | 'editing';
 
-const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS'];
+interface PendingChange {
+  id: string;
+  action: 'add' | 'edit' | 'delete';
+  record: {
+    id?: number;
+    name: string;
+    type: string;
+    ttl: number;
+    value: string;
+  };
+  originalRecord?: ConstellixRecord;
+}
+
+const RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SRV', 'CAA'];
 
 export default function RecordManager({ domain, credentials }: RecordManagerProps) {
   const [mode, setMode] = useState<Mode>('idle');
@@ -25,13 +38,21 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  // Pending changes queue
+  const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
+  const [applying, setApplying] = useState(false);
+  const [applyProgress, setApplyProgress] = useState<{ current: number; total: number } | null>(null);
+
   // Form state for add/edit
   const [editingRecord, setEditingRecord] = useState<ConstellixRecord | null>(null);
   const [formName, setFormName] = useState('@');
   const [formType, setFormType] = useState('A');
   const [formTtl, setFormTtl] = useState('3600');
   const [formValue, setFormValue] = useState('');
-  const [formBusy, setFormBusy] = useState(false);
+
+  // Filter/search
+  const [filterText, setFilterText] = useState('');
+  const [filterType, setFilterType] = useState('all');
 
   async function loadRecords() {
     setMode('loading');
@@ -67,7 +88,6 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
     setFormTtl('3600');
     setFormValue('');
     setError('');
-    setSuccessMsg('');
     setMode('adding');
   }
 
@@ -78,7 +98,6 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
     setFormTtl(record.ttl.toString());
     setFormValue(record.value);
     setError('');
-    setSuccessMsg('');
     setMode('editing');
   }
 
@@ -87,70 +106,194 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
     setMode('viewing');
   }
 
-  async function handleSave() {
-    if (!domainId) return;
-    setFormBusy(true);
-    setError('');
-
+  // Queue a change instead of immediately applying
+  function queueChange() {
     const ttl = parseInt(formTtl, 10) || 3600;
+    const changeId = `change-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     if (mode === 'adding') {
-      const res = await addRecord(credentials, domainId, formName, formType, ttl, formValue);
-      if (res.success) {
-        setSuccessMsg(`Added ${formType} record for ${formName}`);
-        await loadRecords();
-      } else {
-        setError(res.error || 'Failed to add record');
-        setFormBusy(false);
-      }
+      const newChange: PendingChange = {
+        id: changeId,
+        action: 'add',
+        record: {
+          name: formName,
+          type: formType,
+          ttl,
+          value: formValue,
+        },
+      };
+      setPendingChanges([...pendingChanges, newChange]);
+      setSuccessMsg(`Queued: Add ${formType} record for ${formName}`);
     } else if (mode === 'editing' && editingRecord) {
-      const res = await updateRecord(
-        credentials,
-        domainId,
-        editingRecord.id,
-        editingRecord.type,
-        formName,
-        ttl,
-        formValue
+      // Check if there's already a pending edit for this record
+      const existingIndex = pendingChanges.findIndex(
+        c => c.action === 'edit' && c.record.id === editingRecord.id && c.record.type === editingRecord.type
       );
-      if (res.success) {
-        setSuccessMsg(`Updated ${editingRecord.type} record`);
-        await loadRecords();
+
+      const editChange: PendingChange = {
+        id: changeId,
+        action: 'edit',
+        record: {
+          id: editingRecord.id,
+          name: formName,
+          type: editingRecord.type,
+          ttl,
+          value: formValue,
+        },
+        originalRecord: editingRecord,
+      };
+
+      if (existingIndex >= 0) {
+        const updated = [...pendingChanges];
+        updated[existingIndex] = editChange;
+        setPendingChanges(updated);
       } else {
-        setError(res.error || 'Failed to update record');
-        setFormBusy(false);
+        setPendingChanges([...pendingChanges, editChange]);
       }
+      setSuccessMsg(`Queued: Edit ${editingRecord.type} record ${editingRecord.name}`);
     }
 
-    setFormBusy(false);
+    setEditingRecord(null);
+    setMode('viewing');
+    setTimeout(() => setSuccessMsg(''), 3000);
   }
 
-  async function handleDelete(record: ConstellixRecord) {
-    if (!domainId) return;
-    if (!confirm(`Delete ${record.type} record "${record.name}"?`)) return;
+  function queueDelete(record: ConstellixRecord) {
+    // Check if already queued for deletion
+    const alreadyQueued = pendingChanges.some(
+      c => c.action === 'delete' && c.record.id === record.id && c.record.type === record.type
+    );
+    if (alreadyQueued) return;
 
+    const changeId = `change-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const deleteChange: PendingChange = {
+      id: changeId,
+      action: 'delete',
+      record: {
+        id: record.id,
+        name: record.name,
+        type: record.type,
+        ttl: record.ttl,
+        value: record.value,
+      },
+      originalRecord: record,
+    };
+
+    setPendingChanges([...pendingChanges, deleteChange]);
+    setSuccessMsg(`Queued: Delete ${record.type} record ${record.name}`);
+    setTimeout(() => setSuccessMsg(''), 3000);
+  }
+
+  function removeFromQueue(changeId: string) {
+    setPendingChanges(pendingChanges.filter(c => c.id !== changeId));
+  }
+
+  function clearQueue() {
+    setPendingChanges([]);
+  }
+
+  async function applyAllChanges() {
+    if (!domainId || pendingChanges.length === 0) return;
+
+    setApplying(true);
     setError('');
-    const res = await deleteRecord(credentials, domainId, record.id, record.type);
-    if (res.success) {
-      setSuccessMsg(`Deleted ${record.type} record`);
-      setRecords(records.filter((r) => r.id !== record.id || r.type !== record.type));
-    } else {
-      setError(res.error || 'Failed to delete record');
+    setApplyProgress({ current: 0, total: pendingChanges.length });
+
+    const results: { change: PendingChange; success: boolean; error?: string }[] = [];
+
+    for (let i = 0; i < pendingChanges.length; i++) {
+      const change = pendingChanges[i];
+      setApplyProgress({ current: i + 1, total: pendingChanges.length });
+
+      try {
+        if (change.action === 'add') {
+          const res = await addRecord(
+            credentials,
+            domainId,
+            change.record.name,
+            change.record.type,
+            change.record.ttl,
+            change.record.value
+          );
+          results.push({ change, success: res.success, error: res.error });
+        } else if (change.action === 'edit' && change.record.id) {
+          const res = await updateRecord(
+            credentials,
+            domainId,
+            change.record.id,
+            change.record.type,
+            change.record.name,
+            change.record.ttl,
+            change.record.value
+          );
+          results.push({ change, success: res.success, error: res.error });
+        } else if (change.action === 'delete' && change.record.id) {
+          const res = await deleteRecord(credentials, domainId, change.record.id, change.record.type);
+          results.push({ change, success: res.success, error: res.error });
+        }
+      } catch (err) {
+        results.push({ change, success: false, error: (err as Error).message });
+      }
+
+      // Small delay between operations
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
+
+    const successCount = results.filter(r => r.success).length;
+    const failCount = results.filter(r => !r.success).length;
+
+    if (failCount > 0) {
+      const failedOps = results.filter(r => !r.success).map(r =>
+        `${r.change.action} ${r.change.record.type} ${r.change.record.name}: ${r.error}`
+      );
+      setError(`${failCount} operation(s) failed:\n${failedOps.join('\n')}`);
+    }
+
+    if (successCount > 0) {
+      setSuccessMsg(`${successCount} change(s) applied successfully`);
+    }
+
+    setPendingChanges([]);
+    setApplying(false);
+    setApplyProgress(null);
+
+    // Reload records to show updated state
+    await loadRecords();
   }
+
+  // Check if a record has pending changes
+  function getRecordPendingStatus(record: ConstellixRecord): 'delete' | 'edit' | null {
+    const pending = pendingChanges.find(
+      c => c.record.id === record.id && c.record.type === record.type
+    );
+    if (pending) return pending.action as 'delete' | 'edit';
+    return null;
+  }
+
+  // Filter records
+  const filteredRecords = records.filter(rec => {
+    if (filterType !== 'all' && rec.type !== filterType) return false;
+    if (filterText) {
+      const search = filterText.toLowerCase();
+      return (
+        rec.name.toLowerCase().includes(search) ||
+        rec.value.toLowerCase().includes(search)
+      );
+    }
+    return true;
+  });
+
+  const recordTypes = [...new Set(records.map(r => r.type))].sort();
 
   return (
     <div className="record-manager">
-      <h3>Manage Constellix Records</h3>
-      <p className="subtitle">
-        View, add, edit, or delete records for {domain} in Constellix.
-      </p>
+      <h3>DNS Records</h3>
 
-      {error && <p className="error-text">{error}</p>}
+      {error && <pre className="error-text">{error}</pre>}
       {successMsg && <p className="success-text">{successMsg}</p>}
 
       {mode === 'idle' && (
-        <button className="btn btn-secondary" onClick={loadRecords}>
+        <button className="btn btn-primary" onClick={loadRecords}>
           Load Records from Constellix
         </button>
       )}
@@ -159,15 +302,81 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
 
       {(mode === 'viewing' || mode === 'adding' || mode === 'editing') && (
         <>
+          {/* Pending Changes Panel */}
+          {pendingChanges.length > 0 && (
+            <div className="pending-changes-panel">
+              <div className="pending-header">
+                <h4>Pending Changes ({pendingChanges.length})</h4>
+                <div className="pending-actions">
+                  <button className="btn btn-ghost btn-sm" onClick={clearQueue} disabled={applying}>
+                    Clear All
+                  </button>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={applyAllChanges}
+                    disabled={applying}
+                  >
+                    {applying
+                      ? `Applying ${applyProgress?.current}/${applyProgress?.total}...`
+                      : 'Apply All Changes'}
+                  </button>
+                </div>
+              </div>
+              <div className="pending-list">
+                {pendingChanges.map(change => (
+                  <div key={change.id} className={`pending-item pending-${change.action}`}>
+                    <span className={`pending-action action-${change.action}`}>
+                      {change.action.toUpperCase()}
+                    </span>
+                    <span className={`badge badge-${change.record.type.toLowerCase()}`}>
+                      {change.record.type}
+                    </span>
+                    <span className="pending-name">{change.record.name}</span>
+                    <span className="pending-value">{change.record.value}</span>
+                    <button
+                      className="btn-icon btn-icon-danger"
+                      onClick={() => removeFromQueue(change.id)}
+                      disabled={applying}
+                      title="Remove from queue"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Action Bar */}
           <div className="record-manager-actions">
-            <button className="btn btn-secondary" onClick={loadRecords} disabled={formBusy}>
+            <button className="btn btn-secondary" onClick={loadRecords} disabled={applying}>
               Refresh
             </button>
-            <button className="btn btn-primary" onClick={startAdd} disabled={formBusy}>
+            <button className="btn btn-primary" onClick={startAdd} disabled={applying}>
               Add Record
             </button>
+            <div className="record-filters">
+              <select
+                value={filterType}
+                onChange={e => setFilterType(e.target.value)}
+                className="filter-select"
+              >
+                <option value="all">All Types</option>
+                {recordTypes.map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                placeholder="Search name or value..."
+                value={filterText}
+                onChange={e => setFilterText(e.target.value)}
+                className="filter-input"
+              />
+            </div>
           </div>
 
+          {/* Add/Edit Form */}
           {(mode === 'adding' || mode === 'editing') && (
             <div className="record-form">
               <h4>{mode === 'adding' ? 'Add Record' : 'Edit Record'}</h4>
@@ -179,7 +388,7 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
                     placeholder="@ for root"
-                    disabled={formBusy}
+                    disabled={applying}
                   />
                 </div>
                 <div className="form-field">
@@ -187,7 +396,7 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
                   <select
                     value={formType}
                     onChange={(e) => setFormType(e.target.value)}
-                    disabled={formBusy || mode === 'editing'}
+                    disabled={applying || mode === 'editing'}
                   >
                     {RECORD_TYPES.map((t) => (
                       <option key={t} value={t}>{t}</option>
@@ -200,7 +409,7 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
                     type="number"
                     value={formTtl}
                     onChange={(e) => setFormTtl(e.target.value)}
-                    disabled={formBusy}
+                    disabled={applying}
                   />
                 </div>
                 <div className="form-field form-field-wide">
@@ -210,75 +419,94 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
                     value={formValue}
                     onChange={(e) => setFormValue(e.target.value)}
                     placeholder={getValuePlaceholder(formType)}
-                    disabled={formBusy}
+                    disabled={applying}
                   />
                 </div>
               </div>
               <div className="record-form-actions">
-                <button className="btn btn-ghost" onClick={cancelForm} disabled={formBusy}>
+                <button className="btn btn-ghost" onClick={cancelForm} disabled={applying}>
                   Cancel
                 </button>
                 <button
                   className="btn btn-primary"
-                  onClick={handleSave}
-                  disabled={formBusy || !formValue.trim()}
+                  onClick={queueChange}
+                  disabled={applying || !formValue.trim()}
                 >
-                  {formBusy ? 'Saving...' : 'Save'}
+                  {mode === 'adding' ? 'Queue Add' : 'Queue Edit'}
                 </button>
               </div>
             </div>
           )}
 
+          {/* Records Table */}
           {records.length === 0 && mode === 'viewing' && (
             <p className="muted">No records found in Constellix for this domain.</p>
           )}
 
           {records.length > 0 && (
-            <div className="table-container">
-              <table className="record-table">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Type</th>
-                    <th>TTL</th>
-                    <th>Value</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {records.map((rec) => (
-                    <tr key={`${rec.type}-${rec.id}`}>
-                      <td>{rec.name}</td>
-                      <td>
-                        <span className={`badge badge-${rec.type.toLowerCase()}`}>
-                          {rec.type}
-                        </span>
-                      </td>
-                      <td>{rec.ttl}</td>
-                      <td className="value-cell">{rec.value}</td>
-                      <td className="action-cell">
-                        <button
-                          className="btn-icon"
-                          onClick={() => startEdit(rec)}
-                          title="Edit"
-                          disabled={formBusy}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="btn-icon btn-icon-danger"
-                          onClick={() => handleDelete(rec)}
-                          title="Delete"
-                          disabled={formBusy}
-                        >
-                          Del
-                        </button>
-                      </td>
+            <>
+              <div className="record-count">
+                Showing {filteredRecords.length} of {records.length} records
+              </div>
+              <div className="table-container">
+                <table className="record-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Type</th>
+                      <th>TTL</th>
+                      <th>Value</th>
+                      <th>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {filteredRecords.map((rec) => {
+                      const pendingStatus = getRecordPendingStatus(rec);
+                      return (
+                        <tr
+                          key={`${rec.type}-${rec.id}`}
+                          className={pendingStatus ? `row-pending row-pending-${pendingStatus}` : ''}
+                        >
+                          <td>
+                            {rec.name}
+                            {pendingStatus && (
+                              <span className={`pending-badge pending-badge-${pendingStatus}`}>
+                                {pendingStatus}
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            <span className={`badge badge-${rec.type.toLowerCase()}`}>
+                              {rec.type}
+                            </span>
+                          </td>
+                          <td>{rec.ttl}</td>
+                          <td className="value-cell">{rec.value}</td>
+                          <td className="action-cell">
+                            <button
+                              className="btn-icon"
+                              onClick={() => startEdit(rec)}
+                              title="Edit"
+                              disabled={applying || pendingStatus === 'delete'}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn-icon btn-icon-danger"
+                              onClick={() => queueDelete(rec)}
+                              title="Queue Delete"
+                              disabled={applying || pendingStatus === 'delete'}
+                            >
+                              Del
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </>
       )}
@@ -294,6 +522,8 @@ function getValuePlaceholder(type: string): string {
     case 'MX': return '10 mail.example.com';
     case 'TXT': return 'v=spf1 include:...';
     case 'NS': return 'ns1.example.com';
+    case 'SRV': return '10 5 5060 sipserver.example.com';
+    case 'CAA': return '0 issue "letsencrypt.org"';
     default: return '';
   }
 }
