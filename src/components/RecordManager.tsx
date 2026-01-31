@@ -162,32 +162,6 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
     setTimeout(() => setSuccessMsg(''), 3000);
   }
 
-  function queueDelete(record: ConstellixRecord) {
-    // Check if already queued for deletion
-    const alreadyQueued = pendingChanges.some(
-      c => c.action === 'delete' && c.record.id === record.id && c.record.type === record.type
-    );
-    if (alreadyQueued) return;
-
-    const changeId = `change-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const deleteChange: PendingChange = {
-      id: changeId,
-      action: 'delete',
-      record: {
-        id: record.id,
-        name: record.name,
-        type: record.type,
-        ttl: record.ttl,
-        value: record.value,
-      },
-      originalRecord: record,
-    };
-
-    setPendingChanges([...pendingChanges, deleteChange]);
-    setSuccessMsg(`Queued: Delete ${record.type} record ${record.name}`);
-    setTimeout(() => setSuccessMsg(''), 3000);
-  }
-
   function removeFromQueue(changeId: string) {
     setPendingChanges(pendingChanges.filter(c => c.id !== changeId));
   }
