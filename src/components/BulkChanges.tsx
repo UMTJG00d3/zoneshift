@@ -385,7 +385,7 @@ export default function BulkChanges() {
                 </tr>
               </thead>
               <tbody>
-                {getFilteredChanges().map((change, displayIndex) => {
+                {getFilteredChanges().map((change) => {
                   const realIndex = changeset.changes.indexOf(change);
                   return (
                     <tr
