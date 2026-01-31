@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Changeset,
+  ChangesetChange,
   parseChangeset,
   getChangeStats,
   ChangesetValidationError,
