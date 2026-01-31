@@ -24,8 +24,13 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-      - name: Install and Build
+      - name: Install and Build Frontend
         run: |
+          npm install
+          npm run build
+      - name: Install and Build API
+        run: |
+          cd api
           npm install
           npm run build
       - name: Build And Deploy
