@@ -10,6 +10,7 @@ import DomainManager from './components/DomainManager';
 import BulkChanges from './components/BulkChanges';
 import DomainBrowser from './components/DomainBrowser';
 import SecurityScanner from './components/SecurityScanner';
+import AuditLog from './components/AuditLog';
 import Settings from './components/Settings';
 import { parseZoneFile, ParsedZone } from './utils/zoneParser';
 import { exportForOversite } from './utils/oversiteExport';
@@ -22,7 +23,7 @@ const STEPS = [
   'Push to Constellix',
 ];
 
-type AppTab = 'import' | 'domains' | 'bulk-changes' | 'security-scan' | 'settings';
+type AppTab = 'import' | 'domains' | 'bulk-changes' | 'security-scan' | 'audit' | 'settings';
 type AppMode = 'import' | 'manage';
 
 export default function App() {
@@ -34,7 +35,7 @@ export default function App() {
   useEffect(() => {
     const handleNavigate = (e: Event) => {
       const customEvent = e as CustomEvent<string>;
-      if (customEvent.detail && ['import', 'domains', 'bulk-changes', 'security-scan', 'settings'].includes(customEvent.detail)) {
+      if (customEvent.detail && ['import', 'domains', 'bulk-changes', 'security-scan', 'audit', 'settings'].includes(customEvent.detail)) {
         setActiveTab(customEvent.detail as AppTab);
       }
     };
@@ -113,6 +114,12 @@ export default function App() {
           Security Scan
         </button>
         <button
+          className={`tab-btn ${activeTab === 'audit' ? 'tab-btn-active' : ''}`}
+          onClick={() => setActiveTab('audit')}
+        >
+          Audit Log
+        </button>
+        <button
           className={`tab-btn ${activeTab === 'settings' ? 'tab-btn-active' : ''}`}
           onClick={() => setActiveTab('settings')}
         >
@@ -131,6 +138,9 @@ export default function App() {
 
         {/* Security Scan Tab */}
         {activeTab === 'security-scan' && <SecurityScanner />}
+
+        {/* Audit Log Tab */}
+        {activeTab === 'audit' && <AuditLog />}
 
         {/* Settings Tab */}
         {activeTab === 'settings' && <Settings />}
