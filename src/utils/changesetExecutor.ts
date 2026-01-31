@@ -9,7 +9,6 @@ import {
 } from './constellixApi';
 import {
   Changeset,
-  ChangesetChange,
   ExecutionResult,
   ExecutionProgress,
   ExecutionSummary,

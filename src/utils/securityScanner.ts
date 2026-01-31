@@ -194,7 +194,7 @@ export async function analyzeARecords(
 // Analyze CNAME records for dangling references
 export async function analyzeCnameRecords(
   records: ScanRecord[],
-  domain: string,
+  _domain: string,
   onProgress?: (msg: string) => void
 ): Promise<ScanFinding[]> {
   const findings: ScanFinding[] = [];
