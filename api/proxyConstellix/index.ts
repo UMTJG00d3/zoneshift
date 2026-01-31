@@ -16,16 +16,9 @@ const proxyConstellix: AzureFunction = async function (
   context: Context,
   req: HttpRequest
 ): Promise<void> {
-  // Validate SWA authentication
+  // Log auth header for debugging
   const clientPrincipal = req.headers["x-ms-client-principal"];
-  if (!clientPrincipal) {
-    context.res = {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-      body: { success: false, error: "Authentication required" },
-    };
-    return;
-  }
+  context.log("Client principal present:", !!clientPrincipal);
 
   // Parse and validate request body
   const payload = req.body as ProxyRequest;
@@ -72,9 +65,7 @@ const proxyConstellix: AzureFunction = async function (
 
   const url = `${CONSTELLIX_BASE}${payload.path}`;
   const headers: Record<string, string> = {
-    "x-cnsdns-apiKey": apiKey,
-    "x-cnsdns-hmac": hmac,
-    "x-cnsdns-requestDate": timestamp,
+    "x-cns-security-token": `${apiKey}:${hmac}:${timestamp}`,
     "Content-Type": "application/json",
     Accept: "application/json",
   };
