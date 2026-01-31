@@ -54,6 +54,10 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
   const [filterText, setFilterText] = useState('');
   const [filterType, setFilterType] = useState('all');
 
+  // Multi-select for bulk operations
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
+
   async function loadRecords() {
     setMode('loading');
     setError('');
@@ -285,6 +289,97 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
 
   const recordTypes = [...new Set(records.map(r => r.type))].sort();
 
+  // Helper to create unique record key
+  function getRecordKey(rec: ConstellixRecord): string {
+    return `${rec.type}-${rec.id}`;
+  }
+
+  // Handle checkbox click with shift/ctrl support
+  function handleSelect(rec: ConstellixRecord, index: number, event: React.MouseEvent) {
+    const key = getRecordKey(rec);
+    const newSelected = new Set(selectedIds);
+
+    if (event.shiftKey && lastSelectedIndex !== null) {
+      // Shift+click: select range
+      const start = Math.min(lastSelectedIndex, index);
+      const end = Math.max(lastSelectedIndex, index);
+      for (let i = start; i <= end; i++) {
+        newSelected.add(getRecordKey(filteredRecords[i]));
+      }
+    } else if (event.ctrlKey || event.metaKey) {
+      // Ctrl/Cmd+click: toggle single item
+      if (newSelected.has(key)) {
+        newSelected.delete(key);
+      } else {
+        newSelected.add(key);
+      }
+    } else {
+      // Normal click: toggle single, clear others
+      if (newSelected.has(key) && newSelected.size === 1) {
+        newSelected.clear();
+      } else {
+        newSelected.clear();
+        newSelected.add(key);
+      }
+    }
+
+    setSelectedIds(newSelected);
+    setLastSelectedIndex(index);
+  }
+
+  // Select/deselect all visible
+  function toggleSelectAll() {
+    if (selectedIds.size === filteredRecords.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredRecords.map(r => getRecordKey(r))));
+    }
+    setLastSelectedIndex(null);
+  }
+
+  // Queue delete for all selected records
+  function queueDeleteSelected() {
+    const toDelete = filteredRecords.filter(r => selectedIds.has(getRecordKey(r)));
+    let added = 0;
+
+    toDelete.forEach(record => {
+      // Check if already queued for deletion
+      const alreadyQueued = pendingChanges.some(
+        c => c.action === 'delete' && c.record.id === record.id && c.record.type === record.type
+      );
+      if (!alreadyQueued) {
+        const changeId = `change-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const deleteChange: PendingChange = {
+          id: changeId,
+          action: 'delete',
+          record: {
+            id: record.id,
+            name: record.name,
+            type: record.type,
+            ttl: record.ttl,
+            value: record.value,
+          },
+          originalRecord: record,
+        };
+        setPendingChanges(prev => [...prev, deleteChange]);
+        added++;
+      }
+    });
+
+    if (added > 0) {
+      setSuccessMsg(`Queued ${added} record(s) for deletion`);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    }
+
+    setSelectedIds(new Set());
+    setLastSelectedIndex(null);
+  }
+
+  // Check if a record is selected
+  function isSelected(rec: ConstellixRecord): boolean {
+    return selectedIds.has(getRecordKey(rec));
+  }
+
   return (
     <div className="record-manager">
       <h3>DNS Records</h3>
@@ -355,6 +450,15 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
             <button className="btn btn-primary" onClick={startAdd} disabled={applying}>
               Add Record
             </button>
+            {selectedIds.size > 0 && (
+              <button
+                className="btn btn-secondary btn-danger-text"
+                onClick={queueDeleteSelected}
+                disabled={applying}
+              >
+                Delete Selected ({selectedIds.size})
+              </button>
+            )}
             <div className="record-filters">
               <select
                 value={filterType}
@@ -452,6 +556,15 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
                 <table className="record-table">
                   <thead>
                     <tr>
+                      <th className="checkbox-cell">
+                        <input
+                          type="checkbox"
+                          checked={filteredRecords.length > 0 && selectedIds.size === filteredRecords.length}
+                          onChange={toggleSelectAll}
+                          disabled={applying}
+                          title="Select all"
+                        />
+                      </th>
                       <th>Name</th>
                       <th>Type</th>
                       <th>TTL</th>
@@ -460,13 +573,23 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredRecords.map((rec) => {
+                    {filteredRecords.map((rec, index) => {
                       const pendingStatus = getRecordPendingStatus(rec);
+                      const selected = isSelected(rec);
                       return (
                         <tr
                           key={`${rec.type}-${rec.id}`}
-                          className={pendingStatus ? `row-pending row-pending-${pendingStatus}` : ''}
+                          className={`${pendingStatus ? `row-pending row-pending-${pendingStatus}` : ''} ${selected ? 'row-selected' : ''}`}
                         >
+                          <td className="checkbox-cell">
+                            <input
+                              type="checkbox"
+                              checked={selected}
+                              onClick={(e) => handleSelect(rec, index, e)}
+                              onChange={() => {}} // Controlled by onClick
+                              disabled={applying || pendingStatus === 'delete'}
+                            />
+                          </td>
                           <td>
                             {rec.name}
                             {pendingStatus && (
@@ -490,14 +613,6 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
                               disabled={applying || pendingStatus === 'delete'}
                             >
                               Edit
-                            </button>
-                            <button
-                              className="btn-icon btn-icon-danger"
-                              onClick={() => queueDelete(rec)}
-                              title="Queue Delete"
-                              disabled={applying || pendingStatus === 'delete'}
-                            >
-                              Del
                             </button>
                           </td>
                         </tr>

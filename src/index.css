@@ -1995,3 +1995,40 @@ h3 {
     grid-template-columns: 1fr;
   }
 }
+
+/* Record table multi-select */
+.checkbox-cell {
+  width: 32px;
+  text-align: center;
+}
+
+.checkbox-cell input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--blue);
+}
+
+.row-selected {
+  background: rgba(31, 111, 235, 0.15) !important;
+}
+
+.row-selected:hover {
+  background: rgba(31, 111, 235, 0.2) !important;
+}
+
+.btn-danger-text {
+  color: var(--red-bright);
+  border-color: var(--red);
+}
+
+.btn-danger-text:hover:not(:disabled) {
+  background: rgba(218, 54, 51, 0.15);
+}
+
+/* Selection hint */
+.selection-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-left: 0.5rem;
+}
