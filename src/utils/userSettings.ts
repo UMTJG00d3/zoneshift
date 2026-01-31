@@ -11,7 +11,7 @@ interface SettingsResponse {
 
 export async function getConstellixCredentials(): Promise<ConstellixCredentials | null> {
   try {
-    const res = await fetch('/api/settings');
+    const res = await fetch('/api/settings', { credentials: 'include' });
     if (!res.ok) return null;
 
     const data: SettingsResponse = await res.json();
@@ -34,6 +34,7 @@ export async function saveConstellixCredentials(
     const res = await fetch('/api/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({
         constellixApiKey: apiKey,
         constellixSecretKey: secretKey,

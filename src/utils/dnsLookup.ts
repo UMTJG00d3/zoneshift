@@ -129,6 +129,7 @@ async function nsLookup(
   const res = await fetch('/api/dns/query', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({ nameserver, domain, type }),
   });
 

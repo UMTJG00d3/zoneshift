@@ -37,6 +37,7 @@ async function proxyRequest(
   const res = await fetch('/api/proxy/constellix', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({
       apiKey: creds.apiKey,
       secretKey: creds.secretKey,
