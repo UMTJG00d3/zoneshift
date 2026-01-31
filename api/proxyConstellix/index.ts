@@ -59,16 +59,22 @@ const proxyConstellix: AzureFunction = async function (
     return;
   }
 
+  // Trim credentials in case of copy/paste whitespace
+  const apiKey = payload.apiKey.trim();
+  const secretKey = payload.secretKey.trim();
+
   // Compute Constellix HMAC-SHA1 auth headers
   const timestamp = Date.now().toString();
   const hmac = crypto
-    .createHmac("sha1", payload.secretKey)
+    .createHmac("sha1", secretKey)
     .update(timestamp)
     .digest("base64");
 
   const url = `${CONSTELLIX_BASE}${payload.path}`;
   const headers: Record<string, string> = {
-    "x-cns-security-token": `${payload.apiKey}:${hmac}:${timestamp}`,
+    "x-cnsdns-apiKey": apiKey,
+    "x-cnsdns-hmac": hmac,
+    "x-cnsdns-requestDate": timestamp,
     "Content-Type": "application/json",
     Accept: "application/json",
   };
