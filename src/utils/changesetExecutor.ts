@@ -76,62 +76,84 @@ export async function executeChangeset(
       isCancelled: false,
     });
 
-    try {
-      let result: { success: boolean; error?: string };
+    // Execute with retry for rate limiting
+    let retries = 0;
+    const maxRetries = 3;
+    let result: { success: boolean; error?: string } = { success: false, error: 'Unknown' };
 
-      switch (change.action) {
-        case 'delete':
-          result = await deleteRecord(
-            creds,
-            changeset.domainId,
-            change.recordId!,
-            change.type
-          );
-          break;
+    while (retries <= maxRetries) {
+      try {
+        switch (change.action) {
+          case 'delete':
+            result = await deleteRecord(
+              creds,
+              changeset.domainId,
+              change.recordId!,
+              change.type
+            );
+            break;
 
-        case 'create':
-          result = await addRecord(
-            creds,
-            changeset.domainId,
-            change.name,
-            change.type,
-            change.ttl,
-            change.value
-          );
-          break;
+          case 'create':
+            result = await addRecord(
+              creds,
+              changeset.domainId,
+              change.name,
+              change.type,
+              change.ttl,
+              change.value
+            );
+            break;
 
-        case 'update':
-          result = await updateRecord(
-            creds,
-            changeset.domainId,
-            change.recordId!,
-            change.type,
-            change.name,
-            change.ttl,
-            change.value
-          );
-          break;
+          case 'update':
+            result = await updateRecord(
+              creds,
+              changeset.domainId,
+              change.recordId!,
+              change.type,
+              change.name,
+              change.ttl,
+              change.value
+            );
+            break;
 
-        default:
-          result = { success: false, error: `Unknown action: ${change.action}` };
+          default:
+            result = { success: false, error: `Unknown action: ${change.action}` };
+        }
+
+        // Check if rate limited and should retry
+        if (!result.success && result.error?.includes('429') && retries < maxRetries) {
+          retries++;
+          // Wait longer on each retry: 3s, 5s, 8s
+          const retryDelay = 2000 + (retries * 2000);
+          onProgress({
+            current: i + 1,
+            total,
+            currentRecord: `${change.name || '@'} (retry ${retries}/${maxRetries}, waiting ${retryDelay / 1000}s...)`,
+            action: change.action,
+            results: [...results],
+            isPaused: false,
+            isCancelled: false,
+          });
+          await sleep(retryDelay);
+          continue;
+        }
+
+        break; // Success or non-retryable error
+      } catch (error) {
+        result = { success: false, error: (error as Error).message };
+        break;
       }
-
-      results.push({
-        change,
-        status: result.success ? 'success' : 'failed',
-        error: result.error,
-      });
-    } catch (error) {
-      results.push({
-        change,
-        status: 'failed',
-        error: (error as Error).message,
-      });
     }
 
-    // Rate limiting - 200ms between calls (faster than regular push since these are targeted operations)
+    results.push({
+      change,
+      status: result.success ? 'success' : 'failed',
+      error: result.error,
+    });
+
+    // Rate limiting - 1.5s between calls to avoid Constellix rate limits
     if (i < selectedChanges.length - 1) {
-      await sleep(200);
+      await sleep(1500);
     }
   }
 
