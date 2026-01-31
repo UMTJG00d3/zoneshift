@@ -216,6 +216,37 @@ export interface ConstellixRecord {
   rawData?: unknown;
 }
 
+export interface ConstellixDomain {
+  id: number;
+  name: string;
+  status: string;
+  createdAt?: string;
+}
+
+export async function listDomains(
+  creds: ConstellixCredentials
+): Promise<{ domains: ConstellixDomain[]; error?: string }> {
+  const res = await proxyRequest(creds, 'GET', '/domains');
+  if (!res.success) {
+    return { domains: [], error: `Failed to fetch domains: ${res.error || JSON.stringify(res.data)}` };
+  }
+
+  if (Array.isArray(res.data)) {
+    const domains = res.data.map((d: unknown) => {
+      const domain = d as { id: number; name: string; status?: string; createdTs?: number };
+      return {
+        id: domain.id,
+        name: domain.name,
+        status: domain.status || 'active',
+        createdAt: domain.createdTs ? new Date(domain.createdTs).toISOString() : undefined,
+      };
+    });
+    return { domains };
+  }
+
+  return { domains: [], error: 'Unexpected response format' };
+}
+
 export async function getDomainId(
   creds: ConstellixCredentials,
   domain: string

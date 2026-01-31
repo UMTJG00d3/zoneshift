@@ -8,6 +8,7 @@ import ComparisonTable from './components/ComparisonTable';
 import ConstellixPush from './components/ConstellixPush';
 import DomainManager from './components/DomainManager';
 import BulkChanges from './components/BulkChanges';
+import DomainBrowser from './components/DomainBrowser';
 import SecurityScanner from './components/SecurityScanner';
 import Settings from './components/Settings';
 import { parseZoneFile, ParsedZone } from './utils/zoneParser';
@@ -21,7 +22,7 @@ const STEPS = [
   'Push to Constellix',
 ];
 
-type AppTab = 'import' | 'bulk-changes' | 'security-scan' | 'settings';
+type AppTab = 'import' | 'domains' | 'bulk-changes' | 'security-scan' | 'settings';
 type AppMode = 'import' | 'manage';
 
 export default function App() {
@@ -33,7 +34,7 @@ export default function App() {
   useEffect(() => {
     const handleNavigate = (e: Event) => {
       const customEvent = e as CustomEvent<string>;
-      if (customEvent.detail && ['import', 'bulk-changes', 'security-scan', 'settings'].includes(customEvent.detail)) {
+      if (customEvent.detail && ['import', 'domains', 'bulk-changes', 'security-scan', 'settings'].includes(customEvent.detail)) {
         setActiveTab(customEvent.detail as AppTab);
       }
     };
@@ -94,6 +95,12 @@ export default function App() {
           Import &amp; Compare
         </button>
         <button
+          className={`tab-btn ${activeTab === 'domains' ? 'tab-btn-active' : ''}`}
+          onClick={() => setActiveTab('domains')}
+        >
+          Domains
+        </button>
+        <button
           className={`tab-btn ${activeTab === 'bulk-changes' ? 'tab-btn-active' : ''}`}
           onClick={() => setActiveTab('bulk-changes')}
         >
@@ -116,6 +123,9 @@ export default function App() {
       {activeTab === 'import' && mode === 'import' && <StepIndicator currentStep={step} steps={STEPS} />}
 
       <main className="app-main">
+        {/* Domains Tab */}
+        {activeTab === 'domains' && <DomainBrowser />}
+
         {/* Bulk Changes Tab */}
         {activeTab === 'bulk-changes' && <BulkChanges />}
 
