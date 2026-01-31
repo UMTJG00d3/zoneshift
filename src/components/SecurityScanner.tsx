@@ -15,8 +15,7 @@ import {
 } from '../utils/securityScanner';
 import { downloadJson } from '../utils/changesetExecutor';
 import { ConstellixCredentials as ConstellixCredsType, listRecords, getDomainId } from '../utils/constellixApi';
-import { getConstellixCredentials, saveConstellixCredentials } from '../utils/userSettings';
-import ConstellixCredentialsForm from './ConstellixCredentials';
+import { getConstellixCredentials } from '../utils/userSettings';
 
 type ScanPhase = 'input' | 'scanning' | 'results';
 
@@ -24,8 +23,8 @@ export default function SecurityScanner() {
   const [phase, setPhase] = useState<ScanPhase>('input');
   const [domain, setDomain] = useState('');
   const [domainId, setDomainId] = useState<number | null>(null);
-  const [creds, setCreds] = useState<ConstellixCredsType>({ apiKey: '', secretKey: '' });
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [creds, setCreds] = useState<ConstellixCredsType | null>(null);
+  const [credsLoading, setCredsLoading] = useState(true);
   const [progress, setProgress] = useState<ScanProgress | null>(null);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,22 +37,15 @@ export default function SecurityScanner() {
 
   // Load saved credentials
   useEffect(() => {
-    getConstellixCredentials().then(saved => {
-      if (saved) {
-        setCreds(saved);
-      }
-    });
+    setCredsLoading(true);
+    getConstellixCredentials()
+      .then(saved => {
+        if (saved) {
+          setCreds(saved);
+        }
+      })
+      .finally(() => setCredsLoading(false));
   }, []);
-
-  // Save credentials when they change
-  useEffect(() => {
-    if (creds.apiKey && creds.secretKey) {
-      setSaveStatus('saving');
-      saveConstellixCredentials(creds.apiKey, creds.secretKey)
-        .then(success => setSaveStatus(success ? 'saved' : 'error'))
-        .catch(() => setSaveStatus('error'));
-    }
-  }, [creds]);
 
   // Load approved list when domain changes
   useEffect(() => {
@@ -64,7 +56,7 @@ export default function SecurityScanner() {
   }, [domain]);
 
   const handleScan = useCallback(async () => {
-    if (!domain || !creds.apiKey || !creds.secretKey) return;
+    if (!domain || !creds) return;
 
     setPhase('scanning');
     setError(null);
@@ -179,7 +171,7 @@ export default function SecurityScanner() {
     setError(null);
   };
 
-  const hasCreds = creds.apiKey && creds.secretKey;
+  const hasCreds = creds !== null;
   const criticalCount = result?.summary.critical || 0;
   const warningCount = result?.summary.warning || 0;
 
@@ -188,16 +180,17 @@ export default function SecurityScanner() {
       <h2>DNS Security Scanner</h2>
       <p className="subtitle">Scan DNS zones for vulnerabilities, legacy hosting, and subdomain takeover risks</p>
 
-      {/* Credentials */}
-      <div className="scanner-creds">
-        <ConstellixCredentialsForm
-          apiKey={creds.apiKey}
-          secretKey={creds.secretKey}
-          onApiKeyChange={(v) => setCreds(c => ({ ...c, apiKey: v }))}
-          onSecretKeyChange={(v) => setCreds(c => ({ ...c, secretKey: v }))}
-        />
-        {saveStatus === 'saved' && <span className="save-status save-status-saved">Credentials saved</span>}
-        {saveStatus === 'error' && <span className="save-status save-status-error">Failed to save</span>}
+      {/* Credentials Status */}
+      <div className="creds-status">
+        {credsLoading ? (
+          <span className="muted">Loading credentials...</span>
+        ) : hasCreds ? (
+          <span className="creds-ok">Constellix API credentials configured</span>
+        ) : (
+          <span className="creds-missing">
+            No Constellix credentials configured. <a href="#" onClick={(e) => { e.preventDefault(); window.dispatchEvent(new CustomEvent('navigate-tab', { detail: 'settings' })); }}>Go to Settings</a> to add your API keys.
+          </span>
+        )}
       </div>
 
       {/* Input Phase */}

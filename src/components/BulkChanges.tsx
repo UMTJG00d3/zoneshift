@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Changeset,
-  ChangesetChange,
   parseChangeset,
   getChangeStats,
   ChangesetValidationError,
@@ -16,8 +15,7 @@ import {
   ExecutorControl,
 } from '../utils/changesetExecutor';
 import { ConstellixCredentials as ConstellixCredsType } from '../utils/constellixApi';
-import { getConstellixCredentials, saveConstellixCredentials } from '../utils/userSettings';
-import ConstellixCredentialsForm from './ConstellixCredentials';
+import { getConstellixCredentials } from '../utils/userSettings';
 
 type ViewPhase = 'import' | 'preview' | 'executing' | 'done';
 
@@ -29,8 +27,8 @@ export default function BulkChanges() {
   const [filterAction, setFilterAction] = useState<string>('all');
   const [filterText, setFilterText] = useState('');
   const [confirmed, setConfirmed] = useState(false);
-  const [creds, setCreds] = useState<ConstellixCredsType>({ apiKey: '', secretKey: '' });
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [creds, setCreds] = useState<ConstellixCredsType | null>(null);
+  const [credsLoading, setCredsLoading] = useState(true);
   const [progress, setProgress] = useState<ExecutionProgress | null>(null);
   const [summary, setSummary] = useState<ExecutionSummary | null>(null);
   const [backupError, setBackupError] = useState<string | null>(null);
@@ -41,22 +39,11 @@ export default function BulkChanges() {
 
   // Load saved credentials
   useEffect(() => {
-    getConstellixCredentials().then(saved => {
-      if (saved) {
-        setCreds(saved);
-      }
-    });
+    setCredsLoading(true);
+    getConstellixCredentials()
+      .then(saved => setCreds(saved))
+      .finally(() => setCredsLoading(false));
   }, []);
-
-  // Save credentials when they change
-  useEffect(() => {
-    if (creds.apiKey && creds.secretKey) {
-      setSaveStatus('saving');
-      saveConstellixCredentials(creds.apiKey, creds.secretKey)
-        .then((success) => setSaveStatus(success ? 'saved' : 'error'))
-        .catch(() => setSaveStatus('error'));
-    }
-  }, [creds]);
 
   const handleParse = useCallback((content: string) => {
     const { changeset: parsed, errors } = parseChangeset(content);
@@ -138,7 +125,7 @@ export default function BulkChanges() {
   };
 
   const handleExportBackup = async () => {
-    if (!changeset || !creds.apiKey || !creds.secretKey) return;
+    if (!changeset || !creds?.apiKey || !creds?.secretKey) return;
 
     setBackupError(null);
     const { backup, error } = await exportBackup(
@@ -158,7 +145,7 @@ export default function BulkChanges() {
   };
 
   const handleExecute = async () => {
-    if (!changeset || !creds.apiKey || !creds.secretKey || selectedIndices.size === 0) return;
+    if (!changeset || !creds?.apiKey || !creds?.secretKey || selectedIndices.size === 0) return;
 
     setPhase('executing');
     controlRef.current = { isPaused: false, isCancelled: false };
@@ -228,24 +215,33 @@ export default function BulkChanges() {
   const selectedStats = changeset
     ? getChangeStats(changeset.changes.filter((_, i) => selectedIndices.has(i)))
     : { create: 0, update: 0, delete: 0 };
-  const hasCreds = creds.apiKey && creds.secretKey;
+
+  const hasCreds = creds?.apiKey && creds?.secretKey;
 
   return (
     <div className="bulk-changes">
       <h2>Bulk DNS Changes</h2>
       <p className="subtitle">Import a changeset JSON file to execute mass DNS record operations</p>
 
-      {/* Credentials */}
-      <div className="bulk-changes-creds">
-        <ConstellixCredentialsForm
-          apiKey={creds.apiKey}
-          secretKey={creds.secretKey}
-          onApiKeyChange={(v) => setCreds(c => ({ ...c, apiKey: v }))}
-          onSecretKeyChange={(v) => setCreds(c => ({ ...c, secretKey: v }))}
-        />
-        {saveStatus === 'saved' && <span className="save-status save-status-saved">Credentials saved</span>}
-        {saveStatus === 'error' && <span className="save-status save-status-error">Failed to save</span>}
-      </div>
+      {/* Credentials Status */}
+      {credsLoading ? (
+        <div className="creds-status">
+          <span className="muted">Loading credentials...</span>
+        </div>
+      ) : !hasCreds ? (
+        <div className="creds-status creds-missing">
+          <span className="warning-icon">⚠️</span>
+          <span>Constellix API credentials not configured.</span>
+          <a href="#" onClick={(e) => { e.preventDefault(); window.dispatchEvent(new CustomEvent('navigate-tab', { detail: 'settings' })); }}>
+            Go to Settings
+          </a>
+        </div>
+      ) : (
+        <div className="creds-status creds-ok">
+          <span className="success-icon">✓</span>
+          <span>Constellix API connected</span>
+        </div>
+      )}
 
       {/* Import Phase */}
       {phase === 'import' && (

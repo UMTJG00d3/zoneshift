@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import StepIndicator from './components/StepIndicator';
 import ZoneFileImport from './components/ZoneFileImport';
 import RecordTable from './components/RecordTable';
@@ -9,6 +9,7 @@ import ConstellixPush from './components/ConstellixPush';
 import DomainManager from './components/DomainManager';
 import BulkChanges from './components/BulkChanges';
 import SecurityScanner from './components/SecurityScanner';
+import Settings from './components/Settings';
 import { parseZoneFile, ParsedZone } from './utils/zoneParser';
 import { exportForOversite } from './utils/oversiteExport';
 
@@ -20,13 +21,25 @@ const STEPS = [
   'Push to Constellix',
 ];
 
-type AppTab = 'import' | 'bulk-changes' | 'security-scan';
+type AppTab = 'import' | 'bulk-changes' | 'security-scan' | 'settings';
 type AppMode = 'import' | 'manage';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('import');
   const [mode, setMode] = useState<AppMode>('import');
   const [step, setStep] = useState(1);
+
+  // Handle navigation events from child components
+  useEffect(() => {
+    const handleNavigate = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      if (customEvent.detail && ['import', 'bulk-changes', 'security-scan', 'settings'].includes(customEvent.detail)) {
+        setActiveTab(customEvent.detail as AppTab);
+      }
+    };
+    window.addEventListener('navigate-tab', handleNavigate);
+    return () => window.removeEventListener('navigate-tab', handleNavigate);
+  }, []);
   const [parsed, setParsed] = useState<ParsedZone | null>(null);
   const [currentNS, setCurrentNS] = useState<string[]>([]);
   const [manageDomain, setManageDomain] = useState('');
@@ -92,6 +105,12 @@ export default function App() {
         >
           Security Scan
         </button>
+        <button
+          className={`tab-btn ${activeTab === 'settings' ? 'tab-btn-active' : ''}`}
+          onClick={() => setActiveTab('settings')}
+        >
+          Settings
+        </button>
       </nav>
 
       {activeTab === 'import' && mode === 'import' && <StepIndicator currentStep={step} steps={STEPS} />}
@@ -102,6 +121,9 @@ export default function App() {
 
         {/* Security Scan Tab */}
         {activeTab === 'security-scan' && <SecurityScanner />}
+
+        {/* Settings Tab */}
+        {activeTab === 'settings' && <Settings />}
 
         {/* Import Tab */}
         {activeTab === 'import' && mode === 'manage' && (
