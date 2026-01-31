@@ -60,7 +60,6 @@ const proxyConstellix: AzureFunction = async function (
   }
 
   // Compute Constellix HMAC-SHA1 auth headers
-  // Timestamp must be in milliseconds
   const timestamp = Date.now().toString();
   const hmac = crypto
     .createHmac("sha1", payload.secretKey)
@@ -69,9 +68,7 @@ const proxyConstellix: AzureFunction = async function (
 
   const url = `${CONSTELLIX_BASE}${payload.path}`;
   const headers: Record<string, string> = {
-    "x-cnsdns-apiKey": payload.apiKey,
-    "x-cnsdns-hmac": hmac,
-    "x-cnsdns-requestDate": timestamp,
+    "x-cns-security-token": `${payload.apiKey}:${hmac}:${timestamp}`,
     "Content-Type": "application/json",
     Accept: "application/json",
   };
@@ -91,6 +88,7 @@ const proxyConstellix: AzureFunction = async function (
         success: response.status >= 200 && response.status < 300,
         status: response.status,
         data: response.data,
+        error: response.status >= 400 ? (typeof response.data === 'object' && response.data !== null ? JSON.stringify(response.data) : String(response.data)) : undefined,
       },
     };
   } catch (err: unknown) {
