@@ -1,6 +1,7 @@
 import { AzureFunction, Context, HttpRequest } from "@azure/functions";
 import * as crypto from "crypto";
 import * as https from "https";
+import { logAuditEvent } from "../audit";
 
 interface ProxyRequest {
   apiKey: string;
@@ -8,6 +9,22 @@ interface ProxyRequest {
   method: "GET" | "POST" | "PUT" | "DELETE";
   path: string;
   body?: unknown;
+}
+
+interface UserPrincipal {
+  userId: string;
+  userDetails: string;
+  identityProvider: string;
+  userRoles: string[];
+}
+
+function getUserFromHeader(header: string): UserPrincipal | null {
+  try {
+    const decoded = Buffer.from(header, "base64").toString("utf-8");
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
 }
 
 const CONSTELLIX_BASE = "https://api.dns.constellix.com/v1";
@@ -26,6 +43,15 @@ const proxyConstellix: AzureFunction = async function (
     };
     return;
   }
+
+  // Parse user info for audit logging
+  const user = getUserFromHeader(clientPrincipal);
+  const userId = user?.userId || "unknown";
+  const userEmail = user?.userDetails || "unknown";
+  const clientIp =
+    req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+    req.headers["x-client-ip"] ||
+    "unknown";
 
   // Parse and validate request body
   const payload = req.body as ProxyRequest;
@@ -77,6 +103,11 @@ const proxyConstellix: AzureFunction = async function (
     Accept: "application/json",
   };
 
+  // Determine action description for audit log
+  const action = `${payload.method} ${payload.path}`;
+  const resource = extractResourceFromPath(payload.path);
+  const details = payload.body ? JSON.stringify(payload.body).substring(0, 500) : "";
+
   try {
     const response = await makeRequest(
       url,
@@ -85,11 +116,25 @@ const proxyConstellix: AzureFunction = async function (
       payload.body ? JSON.stringify(payload.body) : undefined
     );
 
+    const success = response.status >= 200 && response.status < 300;
+
+    // Log audit event (don't await to avoid slowing down response)
+    logAuditEvent(
+      userId,
+      userEmail,
+      action,
+      resource,
+      details,
+      clientIp,
+      success,
+      success ? undefined : `HTTP ${response.status}`
+    ).catch((err) => context.log.error("Audit log error:", err));
+
     context.res = {
       status: 200,
       headers: { "Content-Type": "application/json" },
       body: {
-        success: response.status >= 200 && response.status < 300,
+        success,
         status: response.status,
         data: response.data,
         error: response.status >= 400 ? (typeof response.data === 'object' && response.data !== null ? JSON.stringify(response.data) : String(response.data)) : undefined,
@@ -98,6 +143,19 @@ const proxyConstellix: AzureFunction = async function (
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Proxy request failed";
     context.log.error("Constellix proxy error:", message);
+
+    // Log failed request to audit
+    logAuditEvent(
+      userId,
+      userEmail,
+      action,
+      resource,
+      details,
+      clientIp,
+      false,
+      message
+    ).catch((auditErr) => context.log.error("Audit log error:", auditErr));
+
     context.res = {
       status: 502,
       headers: { "Content-Type": "application/json" },
@@ -105,6 +163,25 @@ const proxyConstellix: AzureFunction = async function (
     };
   }
 };
+
+// Extract a human-readable resource name from the API path
+function extractResourceFromPath(path: string): string {
+  // e.g., /domains/123/records/a -> domain:123 record:a
+  const parts = path.split("/").filter(Boolean);
+  const resource: string[] = [];
+
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i] === "domains") {
+      resource.push(`domain:${parts[i + 1] || "list"}`);
+      i++;
+    } else if (parts[i] === "records") {
+      resource.push(`record:${parts[i + 1] || "list"}`);
+      i++;
+    }
+  }
+
+  return resource.length > 0 ? resource.join(" ") : path;
+}
 
 function makeRequest(
   url: string,

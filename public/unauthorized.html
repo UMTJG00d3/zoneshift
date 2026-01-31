@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Access Denied - ZoneShift</title>
+  <style>
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --red: #da3633;
+      --red-bright: #f85149;
+      --blue: #1f6feb;
+      --font-mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-mono);
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 500px;
+      text-align: center;
+    }
+
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 4rem;
+      height: 4rem;
+      background: var(--red);
+      color: #fff;
+      font-weight: 800;
+      font-size: 2rem;
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      color: var(--red-bright);
+    }
+
+    p {
+      color: var(--text-secondary);
+      margin-bottom: 1.5rem;
+      line-height: 1.6;
+    }
+
+    .error-code {
+      font-size: 3rem;
+      font-weight: 700;
+      color: var(--red);
+      margin-bottom: 0.5rem;
+    }
+
+    .actions {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    a {
+      display: inline-block;
+      padding: 0.75rem 1.5rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--red);
+      border-radius: 4px;
+      color: var(--text-primary);
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+    }
+
+    a:hover {
+      background: rgba(218, 54, 51, 0.2);
+    }
+
+    .contact {
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid #30363d;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">Z</div>
+    <div class="error-code">403</div>
+    <h1>Access Denied</h1>
+    <p>
+      You are authenticated but not authorized to access ZoneShift.
+      This application is restricted to members of the <strong>adminagents</strong> group.
+    </p>
+    <div class="actions">
+      <a href="/.auth/logout?post_logout_redirect_uri=/">Sign Out</a>
+      <a href="/.auth/login/aad?post_login_redirect_uri=/">Try Different Account</a>
+    </div>
+    <div class="contact">
+      Contact your administrator if you believe you should have access.
+    </div>
+  </div>
+</body>
+</html>

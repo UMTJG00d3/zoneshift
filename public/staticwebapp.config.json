@@ -1,6 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/staticwebapp.config.json",
   "auth": {
+    "rolesSource": "/api/auth/roles",
     "identityProviders": {
       "azureActiveDirectory": {
         "registration": {
@@ -10,12 +11,13 @@
         },
         "login": {
           "loginParameters": ["scope=openid profile email"]
-        }
+        },
+        "userDetailsClaim": "http://schemas.microsoft.com/identity/claims/objectidentifier"
       }
     }
   },
   "login": {
-    "cookieExpirationHours": 168
+    "cookieExpirationHours": 8
   },
   "routes": [
     {
@@ -31,26 +33,38 @@
       "allowedRoles": ["anonymous"]
     },
     {
-      "route": "/api/proxy/*",
+      "route": "/api/auth/roles",
       "allowedRoles": ["authenticated"]
+    },
+    {
+      "route": "/api/proxy/*",
+      "allowedRoles": ["adminagents"]
     },
     {
       "route": "/api/dns/*",
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["adminagents"]
     },
     {
       "route": "/api/settings",
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["adminagents"]
+    },
+    {
+      "route": "/api/audit",
+      "allowedRoles": ["adminagents"]
     },
     {
       "route": "/*",
-      "allowedRoles": ["authenticated"]
+      "allowedRoles": ["adminagents"]
     }
   ],
   "responseOverrides": {
     "401": {
       "redirect": "/.auth/login/aad?post_login_redirect_uri=/",
       "statusCode": 302
+    },
+    "403": {
+      "rewrite": "/unauthorized.html",
+      "statusCode": 403
     }
   },
   "navigationFallback": {
