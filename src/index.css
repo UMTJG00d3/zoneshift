@@ -1925,30 +1925,44 @@ h3 {
   color: var(--text-secondary);
 }
 
-.domain-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 0.75rem;
+/* Domain table view */
+.domain-table-container {
+  overflow-x: auto;
 }
 
-.domain-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 1rem;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-  font-family: var(--font-mono);
-  text-align: left;
+.domain-table {
   width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
 }
 
-.domain-card:hover {
-  border-color: var(--blue);
-  background: var(--bg-tertiary);
+.domain-table th {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 2px solid var(--border);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.domain-table td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.domain-row {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.domain-row:hover {
+  background: var(--bg-secondary);
+}
+
+.domain-name-cell {
+  font-weight: 500;
 }
 
 .domain-name {
@@ -1979,6 +1993,79 @@ h3 {
 .status-pending {
   background: rgba(210, 153, 34, 0.2);
   color: var(--yellow);
+}
+
+.ns-cell {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ns-list-inline {
+  font-family: var(--font-mono);
+}
+
+.ns-more {
+  margin-left: 0.5rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.dns-status {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.dns-status-live {
+  background: rgba(35, 134, 54, 0.2);
+  color: var(--green-bright);
+}
+
+.dns-status-notpointed {
+  background: rgba(210, 153, 34, 0.2);
+  color: var(--yellow);
+}
+
+.dns-status-checking {
+  background: rgba(139, 148, 158, 0.2);
+  color: var(--text-muted);
+}
+
+.dns-status-unknown {
+  background: rgba(139, 148, 158, 0.2);
+  color: var(--text-muted);
+}
+
+/* Keep grid for backwards compat but hide it */
+.domain-grid {
+  display: none;
+}
+
+.domain-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  font-family: var(--font-mono);
+  text-align: left;
+  width: 100%;
+}
+
+.domain-card:hover {
+  border-color: var(--blue);
+  background: var(--bg-tertiary);
 }
 
 @media (max-width: 640px) {

@@ -1,7 +1,15 @@
 import { useState, useEffect } from 'react';
 import { ConstellixDomain, listDomains, ConstellixCredentials } from '../utils/constellixApi';
 import { getConstellixCredentials } from '../utils/userSettings';
+import { dohLookup } from '../utils/dnsLookup';
 import RecordManager from './RecordManager';
+
+interface DomainNSInfo {
+  nameservers: string[];
+  isConstellix: boolean;
+  loading: boolean;
+  error?: string;
+}
 
 export default function DomainBrowser() {
   const [creds, setCreds] = useState<ConstellixCredentials | null>(null);
@@ -11,6 +19,8 @@ export default function DomainBrowser() {
   const [error, setError] = useState<string | null>(null);
   const [selectedDomain, setSelectedDomain] = useState<ConstellixDomain | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [nsInfo, setNsInfo] = useState<Record<string, DomainNSInfo>>({});
+  const [loadingNS, setLoadingNS] = useState(false);
 
   // Load credentials on mount
   useEffect(() => {
@@ -38,10 +48,59 @@ export default function DomainBrowser() {
     if (result.error) {
       setError(result.error);
     } else {
-      setDomains(result.domains.sort((a, b) => a.name.localeCompare(b.name)));
+      const sortedDomains = result.domains.sort((a, b) => a.name.localeCompare(b.name));
+      setDomains(sortedDomains);
+      // Start loading NS records for all domains
+      loadAllNSRecords(sortedDomains);
     }
 
     setLoading(false);
+  }
+
+  async function loadAllNSRecords(domainList: ConstellixDomain[]) {
+    setLoadingNS(true);
+
+    // Initialize all as loading
+    const initialState: Record<string, DomainNSInfo> = {};
+    domainList.forEach(d => {
+      initialState[d.name] = { nameservers: [], isConstellix: false, loading: true };
+    });
+    setNsInfo(initialState);
+
+    // Query NS records in batches to avoid overwhelming
+    const batchSize = 5;
+    for (let i = 0; i < domainList.length; i += batchSize) {
+      const batch = domainList.slice(i, i + batchSize);
+      await Promise.all(batch.map(async (domain) => {
+        try {
+          const answers = await dohLookup(domain.name, 'NS');
+          const nameservers = answers.map(a => a.data.toLowerCase().replace(/\.$/, ''));
+          const isConstellix = nameservers.some(ns =>
+            ns.includes('constellix.com') || ns.includes('constellix.net')
+          );
+          setNsInfo(prev => ({
+            ...prev,
+            [domain.name]: { nameservers, isConstellix, loading: false }
+          }));
+        } catch (err) {
+          setNsInfo(prev => ({
+            ...prev,
+            [domain.name]: {
+              nameservers: [],
+              isConstellix: false,
+              loading: false,
+              error: (err as Error).message
+            }
+          }));
+        }
+      }));
+      // Small delay between batches
+      if (i + batchSize < domainList.length) {
+        await new Promise(r => setTimeout(r, 200));
+      }
+    }
+
+    setLoadingNS(false);
   }
 
   function handleSelectDomain(domain: ConstellixDomain) {
@@ -146,20 +205,67 @@ export default function DomainBrowser() {
           <div className="domain-count">
             {filteredDomains.length} domain{filteredDomains.length !== 1 ? 's' : ''}
             {searchTerm && ` matching "${searchTerm}"`}
+            {loadingNS && <span className="muted"> (checking NS records...)</span>}
           </div>
-          <div className="domain-grid">
-            {filteredDomains.map((domain) => (
-              <button
-                key={domain.id}
-                className="domain-card"
-                onClick={() => handleSelectDomain(domain)}
-              >
-                <span className="domain-name">{domain.name}</span>
-                <span className={`domain-status status-${domain.status.toLowerCase()}`}>
-                  {domain.status}
-                </span>
-              </button>
-            ))}
+          <div className="domain-table-container">
+            <table className="domain-table">
+              <thead>
+                <tr>
+                  <th>Domain</th>
+                  <th>Constellix</th>
+                  <th>Current Nameservers</th>
+                  <th>DNS Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredDomains.map((domain) => {
+                  const ns = nsInfo[domain.name];
+                  return (
+                    <tr
+                      key={domain.id}
+                      className="domain-row"
+                      onClick={() => handleSelectDomain(domain)}
+                    >
+                      <td className="domain-name-cell">
+                        <span className="domain-name">{domain.name}</span>
+                      </td>
+                      <td>
+                        <span className={`domain-status status-${domain.status.toLowerCase()}`}>
+                          {domain.status}
+                        </span>
+                      </td>
+                      <td className="ns-cell">
+                        {ns?.loading ? (
+                          <span className="muted">checking...</span>
+                        ) : ns?.error ? (
+                          <span className="error-text" title={ns.error}>error</span>
+                        ) : ns?.nameservers.length ? (
+                          <span className="ns-list-inline" title={ns.nameservers.join('\n')}>
+                            {ns.nameservers[0]}
+                            {ns.nameservers.length > 1 && (
+                              <span className="ns-more">+{ns.nameservers.length - 1}</span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="muted">-</span>
+                        )}
+                      </td>
+                      <td>
+                        {ns?.loading ? (
+                          <span className="dns-status dns-status-checking">...</span>
+                        ) : ns?.isConstellix ? (
+                          <span className="dns-status dns-status-live">LIVE</span>
+                        ) : ns?.nameservers.length ? (
+                          <span className="dns-status dns-status-notpointed">NOT POINTED</span>
+                        ) : (
+                          <span className="dns-status dns-status-unknown">?</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
