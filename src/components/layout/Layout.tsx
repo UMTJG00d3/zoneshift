@@ -21,7 +21,7 @@ export default function Layout({ route, children }: LayoutProps) {
           </div>
         </main>
       </div>
-      <footer className="flex items-center justify-between px-4 py-2 border-t border-border text-text-muted text-xs shrink-0">
+      <footer className="flex items-center justify-between px-4 py-2 border-t border-border bg-surface text-text-muted text-xs shrink-0">
         <span>ZoneShift &mdash; Umetech MSP</span>
         <button
           className="btn btn-ghost btn-sm export-btn"

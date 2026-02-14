@@ -182,13 +182,19 @@ export default function DomainsPage() {
       </div>
 
       <div className="flex items-center gap-3">
-        <input
-          type="text"
-          placeholder="Search domains..."
-          value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
-          className="flex-1 max-w-xs font-sans text-sm py-2 px-3 bg-surface-dark border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue"
-        />
+        <div className="relative flex-1 max-w-xs">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search domains..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-full font-sans text-sm py-2 pl-9 pr-3 bg-surface-dark border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue"
+          />
+        </div>
         <button
           className="btn btn-secondary"
           onClick={loadDomains}
@@ -211,7 +217,7 @@ export default function DomainsPage() {
 
       {filteredDomains.length > 0 && (
         <div className="bg-surface border border-border rounded-lg overflow-hidden">
-          <div className="px-4 py-2 border-b border-border-light text-text-secondary text-xs">
+          <div className="px-4 py-2.5 border-b border-border-light text-text-secondary text-sm">
             {filteredDomains.length} domain{filteredDomains.length !== 1 ? 's' : ''}
             {searchTerm && ` matching "${searchTerm}"`}
           </div>
@@ -219,7 +225,7 @@ export default function DomainsPage() {
             <table className="domain-table">
               <thead>
                 <tr>
-                  <th>Domain</th>
+                  <th>Domain <span className="text-text-muted opacity-40 ml-0.5">&updownarrow;</span></th>
                   <th>Health</th>
                   <th>Status</th>
                   <th>Email</th>

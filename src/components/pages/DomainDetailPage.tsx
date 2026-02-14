@@ -179,7 +179,7 @@ function OverviewTab({ domain, emailHealth, sslResult, mxResult, storedScan, sca
       {breakdown ? (
         <HealthScoreDetail breakdown={breakdown} />
       ) : storedScan ? (
-        <div className="bg-surface border border-border rounded-lg p-4">
+        <div className="bg-surface border border-border rounded-lg p-4 shadow-sm">
           <div className="flex items-center gap-4">
             <div className="flex flex-col items-center">
               <div className={`text-3xl font-bold ${storedScan.healthScore >= 70 ? 'text-accent-green' : storedScan.healthScore >= 50 ? 'text-accent-yellow' : 'text-accent-red'}`}>
@@ -194,32 +194,38 @@ function OverviewTab({ domain, emailHealth, sslResult, mxResult, storedScan, sca
           </div>
         </div>
       ) : (
-        <div className="bg-surface border border-border rounded-lg p-4 text-text-muted text-sm">
+        <div className="bg-surface border border-border rounded-lg p-4 shadow-sm text-text-muted text-sm">
           No scan data available. Visit the Email Health or SSL tabs to run a live scan.
         </div>
       )}
 
       {/* Status cards grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {statusCards.map(card => (
-          <div
-            key={card.label}
-            className={`bg-surface border border-border rounded-lg p-4 ${card.tab ? 'cursor-pointer hover:border-accent-blue/50 transition-colors' : ''}`}
-            onClick={() => card.tab && onNavigateTab(card.tab)}
-          >
-            <div className="text-text-secondary text-xs font-semibold uppercase tracking-wide mb-2">
-              {card.label}
+        {statusCards.map(card => {
+          const accentBorder = card.severity === 'pass' ? 'border-l-accent-green'
+            : card.severity === 'warn' ? 'border-l-accent-yellow'
+            : card.severity === 'fail' ? 'border-l-accent-red'
+            : 'border-l-accent-blue';
+          return (
+            <div
+              key={card.label}
+              className={`bg-surface border border-border border-l-4 ${accentBorder} rounded-lg p-4 shadow-sm transition-all duration-150 ${card.tab ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md' : ''}`}
+              onClick={() => card.tab && onNavigateTab(card.tab)}
+            >
+              <div className="text-text-secondary text-xs font-semibold uppercase tracking-wide mb-2">
+                {card.label}
+              </div>
+              <div className={`text-sm font-medium ${severityColor(card.severity)}`}>
+                {card.status ?? card.label}
+              </div>
             </div>
-            <div className={`text-sm font-medium ${severityColor(card.severity)}`}>
-              {card.status ?? card.label}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Score history trend */}
       {scanHistory.length > 1 && (
-        <div className="bg-surface border border-border rounded-lg p-4">
+        <div className="bg-surface border border-border rounded-lg p-4 shadow-sm">
           <h3 className="text-sm font-semibold mb-3">Score History</h3>
           <div className="flex items-end gap-1 h-16">
             {scanHistory.slice(0, 14).reverse().map((scan, i) => {
@@ -243,7 +249,7 @@ function OverviewTab({ domain, emailHealth, sslResult, mxResult, storedScan, sca
       )}
 
       {/* Domain info */}
-      <div className="bg-surface border border-border rounded-lg p-4">
+      <div className="bg-surface border border-border rounded-lg p-4 shadow-sm">
         <h3 className="text-sm font-semibold mb-2">Domain Info</h3>
         <div className="text-text-secondary text-sm">
           <span className="font-mono">{domain}</span>

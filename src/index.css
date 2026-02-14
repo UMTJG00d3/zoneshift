@@ -138,6 +138,7 @@ body {
   border: 1px solid var(--border-color);
   border-radius: var(--radius);
   padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .card-accent-green {
@@ -187,12 +188,12 @@ h4 {
 .btn {
   font-family: var(--font-sans);
   font-size: 0.85rem;
-  font-weight: 600;
-  padding: 0.5rem 1.25rem;
+  font-weight: 500;
+  padding: 0.6rem 1.25rem;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s, box-shadow 0.15s;
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -211,6 +212,7 @@ h4 {
 
 .btn-primary:hover:not(:disabled) {
   background: #2563eb;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
 .btn-secondary {
@@ -221,7 +223,7 @@ h4 {
 
 .btn-secondary:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.05);
-  border-color: var(--text-secondary);
+  border-color: var(--accent-blue);
 }
 
 .btn-ghost {
@@ -292,7 +294,7 @@ h4 {
 .audit-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8rem;
+  font-size: 0.875rem;
 }
 
 .record-table th,
@@ -300,29 +302,38 @@ h4 {
 .domain-table th,
 .audit-table th {
   text-align: left;
-  padding: 0.5rem 0.75rem;
+  padding: 0.6rem 1rem;
   border-bottom: 1px solid var(--border-color);
   color: var(--text-muted);
   font-weight: 700;
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  vertical-align: middle;
 }
 
 .record-table td,
 .comparison-table td,
 .domain-table td,
 .audit-table td {
-  padding: 0.4rem 0.75rem;
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid rgba(71, 85, 105, 0.4);
   color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.record-table tbody tr,
+.comparison-table tbody tr,
+.domain-table tbody tr,
+.audit-table tbody tr {
+  transition: background 0.15s;
 }
 
 .record-table tbody tr:hover,
 .comparison-table tbody tr:hover,
 .domain-table tbody tr:hover,
 .audit-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .value-cell {
@@ -357,9 +368,9 @@ h4 {
 /* Record type badges */
 .badge {
   display: inline-block;
-  padding: 0.15rem 0.45rem;
+  padding: 0.25rem 0.6rem;
   border-radius: 4px;
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   font-family: var(--font-mono);
@@ -378,9 +389,9 @@ h4 {
 /* Status badges */
 .status-badge {
   display: inline-block;
-  padding: 0.1rem 0.5rem;
+  padding: 0.2rem 0.6rem;
   border-radius: 4px;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 600;
 }
 
@@ -765,23 +776,29 @@ textarea {
 
 .curation-table th {
   text-align: left;
-  padding: 0.5rem 0.75rem;
+  padding: 0.6rem 1rem;
   border-bottom: 1px solid var(--border-color);
   color: var(--text-muted);
   font-weight: 700;
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  vertical-align: middle;
 }
 
 .curation-table td {
-  padding: 0.4rem 0.75rem;
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid rgba(71, 85, 105, 0.4);
   color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.curation-table tbody tr {
+  transition: background 0.15s;
 }
 
 .curation-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .curation-row-unchecked {
@@ -1371,9 +1388,9 @@ textarea {
 }
 
 .domain-status {
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   font-weight: 700;
-  padding: 0.15rem 0.5rem;
+  padding: 0.25rem 0.65rem;
   border-radius: 4px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -1403,9 +1420,9 @@ textarea {
 }
 
 .dns-status {
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   font-weight: 700;
-  padding: 0.2rem 0.5rem;
+  padding: 0.25rem 0.65rem;
   border-radius: 4px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
