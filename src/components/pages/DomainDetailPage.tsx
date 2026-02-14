@@ -149,9 +149,9 @@ function OverviewTab({ domain, emailHealth, sslResult, mxResult, storedScan, sca
 
   // Use stored scan data for status cards when live data hasn't loaded yet
   const statusCards: { label: string; status: string; severity: Severity; tab?: SubTab }[] = hasLiveData ? [
-    { label: 'SPF', ...emailSummary.spf, tab: 'email' },
-    { label: 'DKIM', ...emailSummary.dkim, tab: 'email' },
-    { label: 'DMARC', ...emailSummary.dmarc, tab: 'email' },
+    { label: 'SPF', status: emailSummary.spf.label, severity: emailSummary.spf.status, tab: 'email' },
+    { label: 'DKIM', status: emailSummary.dkim.label, severity: emailSummary.dkim.status, tab: 'email' },
+    { label: 'DMARC', status: emailSummary.dmarc.label, severity: emailSummary.dmarc.status, tab: 'email' },
     {
       label: 'SSL',
       status: sslResult ? sslResult.statusLabel : 'Not scanned',
