@@ -323,24 +323,38 @@ export async function addRecord(
   // you must append to the existing record's roundRobin array.
   if (['a', 'aaaa', 'txt', 'ns'].includes(typeLower)) {
     const existingRes = await proxyRequest(creds, 'GET', path);
+    console.log('[addRecord] GET existing', path, 'success:', existingRes.success, 'data:', existingRes.data);
+
     if (existingRes.success && Array.isArray(existingRes.data)) {
+      // Normalize name for matching — Constellix may return "" or "@" or the name
+      const normName = (s: string | null | undefined) => (s || '').toLowerCase().replace(/^@$/, '');
       const existing = existingRes.data.find(
-        (r: unknown) => ((r as { name: string }).name || '') === recordName
+        (r: unknown) => normName((r as { name: string }).name) === normName(recordName)
       ) as { id: number; name: string; ttl: number; roundRobin: Array<{ value: string; disableFlag?: boolean; level?: number }> } | undefined;
+
+      console.log('[addRecord] Looking for name:', JSON.stringify(recordName), 'found:', existing ? `id=${existing.id} with ${existing.roundRobin?.length} values` : 'none');
 
       if (existing) {
         // Append new value to existing roundRobin
-        const newRoundRobin = [...existing.roundRobin, { value, disableFlag: false }];
+        const existingRR = existing.roundRobin || [];
+        const newRoundRobin = [...existingRR, { value, disableFlag: false }];
         const updatePath = `${path}/${existing.id}`;
         const updateBody = {
-          name: recordName,
+          name: existing.name,
           ttl,
           roundRobin: newRoundRobin,
         };
+        console.log('[addRecord] Appending via PUT', updatePath, JSON.stringify(updateBody));
         const updateRes = await proxyRequest(creds, 'PUT', updatePath, updateBody);
+        console.log('[addRecord] PUT result:', updateRes.success, updateRes.status, JSON.stringify(updateRes.data));
         if (updateRes.success) return { success: true };
         return { success: false, error: `Failed to append to existing record: HTTP ${updateRes.status}: ${JSON.stringify(updateRes.data)}` };
       }
+    }
+
+    // If GET failed, log it and fall through to POST
+    if (!existingRes.success) {
+      console.log('[addRecord] GET failed, falling through to POST. Status:', existingRes.status, 'error:', existingRes.error);
     }
   }
 
