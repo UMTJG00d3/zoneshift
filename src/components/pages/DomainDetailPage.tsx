@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { navigate } from '../../utils/router';
 import { useCredentials } from '../../context/CredentialsContext';
 import RecordManager from '../RecordManager';
@@ -11,6 +11,7 @@ import type { SSLCheckResult } from '../../utils/sslCheck';
 import type { MxValidationResult } from '../../utils/mxValidation';
 import { calculateHealthScore } from '../../utils/healthScore';
 import { HealthScoreDetail } from '../common/HealthScore';
+import { fetchDomainScanResult, fetchDomainHistory, formatScanAge, type StoredScanResult } from '../../utils/scanResults';
 
 type SubTab = 'overview' | 'records' | 'security' | 'email' | 'ssl';
 
@@ -32,6 +33,13 @@ export default function DomainDetailPage({ domain }: DomainDetailPageProps) {
   const [emailHealth, setEmailHealth] = useState<EmailHealthResult | null>(null);
   const [sslResult, setSSLResult] = useState<SSLCheckResult | null>(null);
   const [mxResult, setMxResult] = useState<MxValidationResult | null>(null);
+  const [storedScan, setStoredScan] = useState<StoredScanResult | null>(null);
+  const [scanHistory, setScanHistory] = useState<StoredScanResult[]>([]);
+
+  useEffect(() => {
+    fetchDomainScanResult(domain).then(setStoredScan);
+    fetchDomainHistory(domain).then(setScanHistory);
+  }, [domain]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -63,7 +71,7 @@ export default function DomainDetailPage({ domain }: DomainDetailPageProps) {
       {/* Tab Content */}
       <div>
         {activeTab === 'overview' && (
-          <OverviewTab domain={domain} emailHealth={emailHealth} sslResult={sslResult} mxResult={mxResult} onNavigateTab={setActiveTab} />
+          <OverviewTab domain={domain} emailHealth={emailHealth} sslResult={sslResult} mxResult={mxResult} storedScan={storedScan} scanHistory={scanHistory} onNavigateTab={setActiveTab} />
         )}
 
         {activeTab === 'records' && (
@@ -125,19 +133,22 @@ function mxSeverity(result: MxValidationResult | null): { status: Severity; labe
   return { status: result.overallStatus as Severity, label: result.hosts.length > 0 ? `${result.hosts.length} MX` : 'No MX' };
 }
 
-function OverviewTab({ domain, emailHealth, sslResult, mxResult, onNavigateTab }: {
+function OverviewTab({ domain, emailHealth, sslResult, mxResult, storedScan, scanHistory, onNavigateTab }: {
   domain: string;
   emailHealth: EmailHealthResult | null;
   sslResult: SSLCheckResult | null;
   mxResult: MxValidationResult | null;
+  storedScan: StoredScanResult | null;
+  scanHistory: StoredScanResult[];
   onNavigateTab: (tab: SubTab) => void;
 }) {
   const emailSummary = getEmailHealthSummary(emailHealth);
   const blSummary = mxSeverity(mxResult);
-  const hasAnyData = emailHealth || sslResult || mxResult;
-  const breakdown = hasAnyData ? calculateHealthScore(emailHealth, sslResult, mxResult) : null;
+  const hasLiveData = emailHealth || sslResult || mxResult;
+  const breakdown = hasLiveData ? calculateHealthScore(emailHealth, sslResult, mxResult) : null;
 
-  const statusCards: { label: string; status: string; severity: Severity; tab?: SubTab }[] = [
+  // Use stored scan data for status cards when live data hasn't loaded yet
+  const statusCards: { label: string; status: string; severity: Severity; tab?: SubTab }[] = hasLiveData ? [
     { label: 'SPF', ...emailSummary.spf, tab: 'email' },
     { label: 'DKIM', ...emailSummary.dkim, tab: 'email' },
     { label: 'DMARC', ...emailSummary.dmarc, tab: 'email' },
@@ -148,12 +159,45 @@ function OverviewTab({ domain, emailHealth, sslResult, mxResult, onNavigateTab }
       tab: 'ssl',
     },
     { label: 'Blacklist', status: blSummary.label, severity: blSummary.status, tab: 'email' },
+  ] : storedScan ? [
+    { label: 'SPF', status: storedScan.spfFound ? storedScan.spfQualifier : 'Not found', severity: storedScan.spfStatus as Severity, tab: 'email' as SubTab },
+    { label: 'DKIM', status: 'Run live scan', severity: 'info' as Severity, tab: 'email' as SubTab },
+    { label: 'DMARC', status: storedScan.dmarcFound ? (storedScan.dmarcPolicy || 'Found') : 'Not found', severity: storedScan.dmarcStatus as Severity, tab: 'email' as SubTab },
+    { label: 'SSL', status: storedScan.sslStatus, severity: storedScan.sslStatus === 'valid' ? 'pass' as Severity : storedScan.sslStatus === 'expiring' ? 'warn' as Severity : 'fail' as Severity, tab: 'ssl' as SubTab },
+    { label: 'MX', status: storedScan.mxCount > 0 ? `${storedScan.mxCount} records` : 'None', severity: storedScan.mxCount > 0 ? 'pass' as Severity : 'warn' as Severity, tab: 'email' as SubTab },
+  ] : [
+    { label: 'SPF', status: 'Not scanned', severity: 'info' as Severity, tab: 'email' as SubTab },
+    { label: 'DKIM', status: 'Not scanned', severity: 'info' as Severity, tab: 'email' as SubTab },
+    { label: 'DMARC', status: 'Not scanned', severity: 'info' as Severity, tab: 'email' as SubTab },
+    { label: 'SSL', status: 'Not scanned', severity: 'info' as Severity, tab: 'ssl' as SubTab },
+    { label: 'Blacklist', status: 'Not scanned', severity: 'info' as Severity, tab: 'email' as SubTab },
   ];
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Health Score */}
-      <HealthScoreDetail breakdown={breakdown} />
+      {/* Health Score — live or stored */}
+      {breakdown ? (
+        <HealthScoreDetail breakdown={breakdown} />
+      ) : storedScan ? (
+        <div className="bg-surface border border-border rounded-lg p-4">
+          <div className="flex items-center gap-4">
+            <div className="flex flex-col items-center">
+              <div className={`text-3xl font-bold ${storedScan.healthScore >= 70 ? 'text-accent-green' : storedScan.healthScore >= 50 ? 'text-accent-yellow' : 'text-accent-red'}`}>
+                {storedScan.healthScore}
+              </div>
+              <div className="text-text-muted text-xs">Health Score</div>
+            </div>
+            <div className="text-text-secondary text-sm">
+              <div>From automated scan {formatScanAge(storedScan.scannedAt)}</div>
+              <div className="text-text-muted text-xs mt-1">Navigate to tabs for live results</div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-surface border border-border rounded-lg p-4 text-text-muted text-sm">
+          No scan data available. Visit the Email Health or SSL tabs to run a live scan.
+        </div>
+      )}
 
       {/* Status cards grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -173,11 +217,39 @@ function OverviewTab({ domain, emailHealth, sslResult, mxResult, onNavigateTab }
         ))}
       </div>
 
-      {/* Quick info */}
+      {/* Score history trend */}
+      {scanHistory.length > 1 && (
+        <div className="bg-surface border border-border rounded-lg p-4">
+          <h3 className="text-sm font-semibold mb-3">Score History</h3>
+          <div className="flex items-end gap-1 h-16">
+            {scanHistory.slice(0, 14).reverse().map((scan, i) => {
+              const height = Math.max(4, (scan.healthScore / 100) * 100);
+              const color = scan.healthScore >= 70 ? 'bg-accent-green' : scan.healthScore >= 50 ? 'bg-accent-yellow' : 'bg-accent-red';
+              return (
+                <div
+                  key={i}
+                  className={`flex-1 rounded-t ${color} opacity-80 hover:opacity-100 transition-opacity`}
+                  style={{ height: `${height}%` }}
+                  title={`${scan.healthScore} — ${new Date(scan.scannedAt).toLocaleDateString()}`}
+                />
+              );
+            })}
+          </div>
+          <div className="flex justify-between text-text-muted text-[10px] mt-1">
+            <span>{scanHistory.length > 1 ? formatScanAge(scanHistory[scanHistory.length - 1].scannedAt) : ''}</span>
+            <span>{formatScanAge(scanHistory[0].scannedAt)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Domain info */}
       <div className="bg-surface border border-border rounded-lg p-4">
         <h3 className="text-sm font-semibold mb-2">Domain Info</h3>
         <div className="text-text-secondary text-sm">
           <span className="font-mono">{domain}</span>
+          {storedScan && (
+            <span className="text-text-muted text-xs ml-3">Last automated scan: {new Date(storedScan.scannedAt).toLocaleString()}</span>
+          )}
         </div>
       </div>
     </div>

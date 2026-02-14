@@ -4,6 +4,8 @@ import { dohLookup } from '../../utils/dnsLookup';
 import { useCredentials } from '../../context/CredentialsContext';
 import { navigate } from '../../utils/router';
 import { validateSpf, validateDmarc, type Severity } from '../../utils/emailAuthValidation';
+import { fetchAllScanResults, formatScanAge, type StoredScanResult } from '../../utils/scanResults';
+import { HealthScoreBadge } from '../common/HealthScore';
 
 interface DomainNSInfo {
   nameservers: string[];
@@ -28,6 +30,18 @@ export default function DomainsPage() {
   const [nsInfo, setNsInfo] = useState<Record<string, DomainNSInfo>>({});
   const [loadingNS, setLoadingNS] = useState(false);
   const [emailHealth, setEmailHealth] = useState<Record<string, DomainEmailQuick>>({});
+  const [storedScans, setStoredScans] = useState<Record<string, StoredScanResult>>({});
+  const [scansLoaded, setScansLoaded] = useState(false);
+
+  // Load stored scan results immediately (no credentials needed)
+  useEffect(() => {
+    fetchAllScanResults().then(results => {
+      const map: Record<string, StoredScanResult> = {};
+      for (const r of results) map[r.domain] = r;
+      setStoredScans(map);
+      setScansLoaded(true);
+    });
+  }, []);
 
   useEffect(() => {
     if (credentials) {
@@ -206,6 +220,7 @@ export default function DomainsPage() {
               <thead>
                 <tr>
                   <th>Domain</th>
+                  <th>Health</th>
                   <th>Status</th>
                   <th>Email</th>
                   <th>Current Nameservers</th>
@@ -215,6 +230,7 @@ export default function DomainsPage() {
               <tbody>
                 {filteredDomains.map(domain => {
                   const ns = nsInfo[domain.name];
+                  const scan = storedScans[domain.name];
                   return (
                     <tr
                       key={domain.id}
@@ -223,6 +239,20 @@ export default function DomainsPage() {
                     >
                       <td className="domain-name-cell">
                         <span className="domain-name">{domain.name}</span>
+                        {scan && (
+                          <span className="text-text-muted text-[10px] ml-2" title={`Last scan: ${scan.scannedAt}`}>
+                            {formatScanAge(scan.scannedAt)}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        {scan ? (
+                          <HealthScoreBadge score={scan.healthScore} size="sm" />
+                        ) : scansLoaded ? (
+                          <span className="text-text-muted text-xs">—</span>
+                        ) : (
+                          <span className="text-text-muted text-xs">...</span>
+                        )}
                       </td>
                       <td>
                         <span className={`domain-status status-${domain.status.toLowerCase()}`}>
