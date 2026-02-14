@@ -35,10 +35,15 @@ const CONSTELLIX_COLOR = '#3b82f6'; // blue
 const DEFAULT_SUBDOMAINS = [
   '@', 'www', 'mail', 'ftp', 'cpanel', 'webmail', 'webdisk', 'whm',
   'autodiscover', 'autoconfig', 'enterpriseenrollment', 'enterpriseregistration',
-  'selector1._domainkey', 'selector2._domainkey', '_dmarc',
+  'selector1._domainkey', 'selector2._domainkey', 'default._domainkey', '_dmarc',
+  // cPanel service discovery records
+  '_autodiscover._tcp', '_caldav._tcp', '_caldavs._tcp',
+  '_carddav._tcp', '_carddavs._tcp', '_imap._tcp', '_imaps._tcp',
+  '_pop3._tcp', '_pop3s._tcp', '_submission._tcp',
+  'cpcalendars', 'cpcontacts', '_cpanel-dcv-test-record', '_dnsauth',
 ];
 
-const QUERY_TYPES = ['A', 'AAAA', 'MX', 'TXT', 'CNAME', 'NS'];
+const QUERY_TYPES = ['A', 'AAAA', 'MX', 'TXT', 'CNAME', 'NS', 'SRV'];
 
 const FILTER_TYPES = ['All', 'A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SRV', 'CAA'];
 
