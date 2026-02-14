@@ -193,14 +193,32 @@ export default function MigrateView() {
         },
       );
 
-      const activeSourceCount = activeSources.length;
-      const scanned: ScannedRecord[] = sourcedRecords.map(r => {
+      // Identify which sources are Constellix (to exclude Constellix-only records)
+      const constellixIds = new Set(
+        activeSources
+          .filter(s => s.hostname.toLowerCase().includes('constellix'))
+          .map(s => s.id),
+      );
+      const nonConstellixSourceCount = activeSources.filter(
+        s => !s.hostname.toLowerCase().includes('constellix'),
+      ).length;
+
+      // Filter out records only found on Constellix — they're already migrated
+      const relevantRecords = constellixIds.size > 0
+        ? sourcedRecords.filter(r => r.sources.some(sid => !constellixIds.has(sid)))
+        : sourcedRecords;
+
+      const scanned: ScannedRecord[] = relevantRecords.map(r => {
         const relativeName = toRelativeName(r.name);
-        const onAllSources = r.sources.length >= activeSourceCount;
+        // Pre-select records found on all non-Constellix sources
+        const nonConstellixSources = r.sources.filter(sid => !constellixIds.has(sid));
+        const onAllNonConstellix = nonConstellixSourceCount > 0
+          ? nonConstellixSources.length >= nonConstellixSourceCount
+          : r.sources.length >= activeSources.length;
         return {
           ...r,
           relativeName,
-          selected: onAllSources,
+          selected: onAllNonConstellix,
         };
       });
 
