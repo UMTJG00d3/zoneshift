@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   ConstellixCredentials,
   ConstellixRecord,
@@ -49,6 +49,9 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
   const [formType, setFormType] = useState('A');
   const [formTtl, setFormTtl] = useState('3600');
   const [formValue, setFormValue] = useState('');
+
+  // Form ref for scroll-into-view
+  const formRef = useRef<HTMLDivElement>(null);
 
   // Filter/search
   const [filterText, setFilterText] = useState('');
@@ -103,7 +106,15 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
     setFormValue(record.value);
     setError('');
     setMode('editing');
+    // Scroll handled by useEffect below
   }
+
+  // Scroll form into view when editing/adding
+  useEffect(() => {
+    if ((mode === 'editing' || mode === 'adding') && formRef.current) {
+      formRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [mode]);
 
   function cancelForm() {
     setEditingRecord(null);
@@ -456,7 +467,7 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
 
           {/* Add/Edit Form */}
           {(mode === 'adding' || mode === 'editing') && (
-            <div className="record-form">
+            <div className="record-form" ref={formRef}>
               <h4>{mode === 'adding' ? 'Add Record' : 'Edit Record'}</h4>
               <div className="record-form-fields">
                 <div className="form-field">
