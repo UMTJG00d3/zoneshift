@@ -155,13 +155,15 @@ export default function MigrateView() {
       );
 
       // Convert to ScannedRecords with relative names and selection state
+      const activeSourceCount = activeSources.length;
       const scanned: ScannedRecord[] = sourcedRecords.map(r => {
         const relativeName = toRelativeName(r.name);
-        // Pre-select everything (user unchecks junk)
+        // Only pre-select records found on ALL scanned sources
+        const onAllSources = r.sources.length >= activeSourceCount;
         return {
           ...r,
           relativeName,
-          selected: true,
+          selected: onAllSources,
         };
       });
 
