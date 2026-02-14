@@ -192,7 +192,7 @@ export default function DomainsPage() {
             placeholder="Search domains..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="w-full font-sans text-sm py-2 pl-9 pr-3 bg-surface-dark border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue"
+            className="w-full font-sans text-sm py-2 pl-9 pr-3 bg-surface-card border border-[#475569] rounded-md text-text-primary placeholder:text-text-muted focus:outline-none focus:border-transparent focus:ring-2 focus:ring-accent-blue"
           />
         </div>
         <button
@@ -217,7 +217,7 @@ export default function DomainsPage() {
 
       {filteredDomains.length > 0 && (
         <div className="bg-surface border border-border rounded-lg overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-border-light text-text-secondary text-sm">
+          <div className="px-3 py-2 border-b border-border bg-surface-card/50 text-text-secondary text-xs">
             {filteredDomains.length} domain{filteredDomains.length !== 1 ? 's' : ''}
             {searchTerm && ` matching "${searchTerm}"`}
           </div>
@@ -225,7 +225,7 @@ export default function DomainsPage() {
             <table className="domain-table">
               <thead>
                 <tr>
-                  <th>Domain <span className="text-text-muted opacity-40 ml-0.5">&updownarrow;</span></th>
+                  <th>Domain</th>
                   <th>Health</th>
                   <th>Status</th>
                   <th>Email</th>
@@ -313,10 +313,10 @@ function EmailQuickBadge({ info }: { info?: DomainEmailQuick }) {
   }
 
   const colorMap: Record<Severity, string> = {
-    pass: 'bg-accent-green/20 text-accent-green',
-    warn: 'bg-accent-yellow/20 text-accent-yellow',
-    fail: 'bg-accent-red/20 text-accent-red',
-    info: 'bg-surface-dark text-text-muted',
+    pass: 'bg-accent-green/20 text-accent-green border-accent-green/30',
+    warn: 'bg-accent-yellow/20 text-accent-yellow border-accent-yellow/30',
+    fail: 'bg-accent-red/20 text-accent-red border-accent-red/30',
+    info: 'bg-surface-card/50 text-text-muted border-border',
   };
 
   const iconMap: Record<Severity, string> = {
@@ -325,7 +325,7 @@ function EmailQuickBadge({ info }: { info?: DomainEmailQuick }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${colorMap[info.overall]}`}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${colorMap[info.overall]}`}
       title={`SPF: ${info.spf}, DMARC: ${info.dmarc}`}
     >
       {iconMap[info.overall]}

@@ -209,10 +209,10 @@ function OverviewTab({ domain, emailHealth, sslResult, mxResult, storedScan, sca
           return (
             <div
               key={card.label}
-              className={`bg-surface border border-border border-l-4 ${accentBorder} rounded-lg p-4 shadow-sm transition-all duration-150 ${card.tab ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md' : ''}`}
+              className={`bg-surface border border-border border-l-4 ${accentBorder} rounded-lg p-3 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.3)] transition-all duration-200 ${card.tab ? 'cursor-pointer hover:shadow-[0_10px_15px_-3px_rgba(0,0,0,0.4)] hover:-translate-y-px' : ''}`}
               onClick={() => card.tab && onNavigateTab(card.tab)}
             >
-              <div className="text-text-secondary text-xs font-semibold uppercase tracking-wide mb-2">
+              <div className="text-text-muted text-[10px] font-semibold uppercase tracking-wider mb-1.5">
                 {card.label}
               </div>
               <div className={`text-sm font-medium ${severityColor(card.severity)}`}>
