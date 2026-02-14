@@ -772,6 +772,170 @@ textarea {
   flex-wrap: wrap;
 }
 
+/* Push Review Plan */
+.push-plan {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.push-plan-stats {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.plan-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.plan-stat-create {
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--accent-green);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.plan-stat-update {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--accent-blue);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.plan-stat-skip {
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--text-secondary);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.plan-stat-delete {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--accent-red);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.plan-stat .plan-stat-num {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.push-plan-details {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.push-plan-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.push-plan-table th {
+  text-align: left;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  position: sticky;
+  top: 0;
+  background: var(--bg-secondary);
+}
+
+.push-plan-table td {
+  padding: 0.35rem 0.75rem;
+  border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+}
+
+.plan-action-badge {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.plan-action-create { background: rgba(34, 197, 94, 0.15); color: var(--accent-green); }
+.plan-action-update { background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); }
+.plan-action-skip { background: rgba(148, 163, 184, 0.15); color: var(--text-secondary); }
+.plan-action-delete { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); }
+
+.push-plan-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.push-plan-orphans {
+  border-top: 1px solid var(--border-color);
+  padding-top: 0.75rem;
+}
+
+.orphan-toggle {
+  background: transparent;
+  border: none;
+  color: var(--accent-yellow);
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+}
+
+.orphan-toggle:hover {
+  opacity: 0.8;
+}
+
+.orphan-list {
+  margin-top: 0.5rem;
+}
+
+.orphan-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  font-size: 0.8rem;
+  border-bottom: 1px solid rgba(71, 85, 105, 0.2);
+}
+
+.orphan-row .checkbox-cell {
+  width: auto;
+}
+
+.orphan-name {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.orphan-value {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ===============================
    ConstellixPush
    =============================== */

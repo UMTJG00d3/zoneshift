@@ -5,8 +5,19 @@ import {
   queryMultipleSources,
 } from '../utils/dnsLookup';
 import { parseZoneFile, DnsRecord, formatForConstellix } from '../utils/zoneParser';
-import { pushAllRecords, PushProgress, PushError } from '../utils/constellixApi';
+import {
+  ConstellixRecord,
+  PushError,
+  getDomainId,
+  createDomain,
+  listRecords,
+  createRecord,
+  updateRecord,
+  deleteRecord,
+} from '../utils/constellixApi';
+import { mapRecordsForConstellix } from '../utils/constellixRecordMapper';
 import { getConstellixCredentials } from '../utils/userSettings';
+import { normalizeValue } from '../utils/recordComparison';
 
 const SOURCE_COLORS = [
   '#f97316', // orange
@@ -55,10 +66,27 @@ function makeDefaultSources(): SourceConfig[] {
 
 interface ScannedRecord extends SourcedRecord {
   selected: boolean;
-  relativeName: string; // @, www, mail, etc.
+  relativeName: string;
 }
 
-type PushPhase = 'idle' | 'creating_domain' | 'pushing_records' | 'done' | 'error';
+// Push plan types
+type PlanAction = 'create' | 'update' | 'skip' | 'delete';
+
+interface PlanItem {
+  action: PlanAction;
+  name: string;
+  type: string;
+  value: string;
+  ttl: number;
+  // For updates: the existing Constellix record to update
+  existingRecord?: ConstellixRecord;
+  // For deletes: the orphaned Constellix record
+  orphanRecord?: ConstellixRecord;
+  // Whether user wants to include this delete
+  includeDelete?: boolean;
+}
+
+type PushPhase = 'idle' | 'reviewing' | 'executing' | 'done' | 'error';
 
 export default function MigrateView() {
   // Section A: Domain & Sources
@@ -84,9 +112,17 @@ export default function MigrateView() {
   const [zoneText, setZoneText] = useState('');
   const [zoneImportMsg, setZoneImportMsg] = useState('');
 
-  // Section C: Push
+  // Section C: Push plan
   const [pushPhase, setPushPhase] = useState<PushPhase>('idle');
-  const [pushProgress, setPushProgress] = useState<PushProgress | null>(null);
+  const [planItems, setPlanItems] = useState<PlanItem[]>([]);
+  const [showOrphans, setShowOrphans] = useState(false);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planError, setPlanError] = useState('');
+
+  // Execution state
+  const [execProgress, setExecProgress] = useState({ current: 0, total: 0, message: '' });
+  const [execErrors, setExecErrors] = useState<PushError[]>([]);
+  const [execSuccesses, setExecSuccesses] = useState(0);
 
   // Convert FQDN to relative name for display
   const toRelativeName = useCallback((fqdn: string) => {
@@ -142,6 +178,9 @@ export default function MigrateView() {
     setScanning(true);
     setScanError('');
     setScanProgress({ done: 0, total: 0, label: '' });
+    // Reset push state on rescan
+    setPushPhase('idle');
+    setPlanItems([]);
 
     try {
       const sourcedRecords = await queryMultipleSources(
@@ -154,11 +193,9 @@ export default function MigrateView() {
         },
       );
 
-      // Convert to ScannedRecords with relative names and selection state
       const activeSourceCount = activeSources.length;
       const scanned: ScannedRecord[] = sourcedRecords.map(r => {
         const relativeName = toRelativeName(r.name);
-        // Only pre-select records found on ALL scanned sources
         const onAllSources = r.sources.length >= activeSourceCount;
         return {
           ...r,
@@ -186,12 +223,10 @@ export default function MigrateView() {
         return;
       }
 
-      // If domain is empty, set it from the zone file origin
       if (!domain && parsed.origin) {
         setDomain(parsed.origin);
       }
 
-      // Convert DnsRecords to ScannedRecords with a "Zone File" source
       const zoneSourceId = 'zone-file';
       const zoneRecords: ScannedRecord[] = parsed.records.map(r => ({
         name: r.name === '@' && parsed.origin ? parsed.origin : r.name.includes('.') ? r.name : `${r.name}.${parsed.origin || domain}`,
@@ -203,7 +238,6 @@ export default function MigrateView() {
         relativeName: r.name,
       }));
 
-      // Merge with existing records
       const existing = new Map<string, ScannedRecord>();
       for (const rec of records) {
         const key = `${rec.relativeName.toLowerCase()}|${rec.type}|${rec.value.toLowerCase().trim()}`;
@@ -270,43 +304,285 @@ export default function MigrateView() {
     for (const s of sources) {
       map.set(s.id, s);
     }
-    // Add zone-file pseudo-source
     map.set('zone-file', { id: 'zone-file', label: 'Zone File', hostname: '', color: '#94a3b8' });
     return map;
   }, [sources]);
 
-  // Push to Constellix
-  async function handlePush() {
+  // ========================
+  // PUSH PLAN: Build review
+  // ========================
+  async function handleReviewPush() {
     const creds = await getConstellixCredentials();
     if (!creds) {
-      setScanError('No Constellix credentials configured. Go to Settings to add your API keys.');
+      setPlanError('No Constellix credentials configured. Go to Settings to add your API keys.');
       return;
     }
 
-    const selectedRecords = records.filter(r => r.selected);
-    if (selectedRecords.length === 0) return;
+    setPlanLoading(true);
+    setPlanError('');
+    setPlanItems([]);
+    setShowOrphans(false);
 
-    // Convert ScannedRecords to DnsRecords for the push API
-    const dnsRecords: DnsRecord[] = selectedRecords.map(r => ({
-      name: r.relativeName,
-      ttl: r.ttl,
-      class: 'IN',
-      type: r.type,
-      value: r.value,
-    }));
+    const trimmedDomain = domain.trim().replace(/\.$/, '');
 
-    setPushPhase('creating_domain');
-    setPushProgress(null);
+    try {
+      // Get or create domain in Constellix
+      let domainId: number | null = null;
+      const domainRes = await getDomainId(creds, trimmedDomain);
+      if (domainRes.id) {
+        domainId = domainRes.id;
+      }
+      // If domain doesn't exist yet, everything is a create
+      // (domain will be created at execute time)
 
-    await pushAllRecords(
-      creds,
-      domain.trim().replace(/\.$/, ''),
-      dnsRecords,
-      (p) => {
-        setPushProgress(p);
-        setPushPhase(p.phase as PushPhase);
-      },
-    );
+      // Fetch existing Constellix records
+      let existingRecords: ConstellixRecord[] = [];
+      if (domainId) {
+        const listRes = await listRecords(creds, domainId);
+        if (listRes.error) {
+          setPlanError(`Failed to fetch existing records: ${listRes.error}`);
+          setPlanLoading(false);
+          return;
+        }
+        existingRecords = listRes.records;
+      }
+
+      // Build lookup of existing records by normalized name|type|value
+      const existingByKey = new Map<string, ConstellixRecord>();
+      // Also track by name|type for update matching
+      const existingByNameType = new Map<string, ConstellixRecord[]>();
+
+      for (const rec of existingRecords) {
+        const normName = (rec.name || '@').toLowerCase();
+        const normType = rec.type.toUpperCase();
+
+        // For value matching — Constellix returns values in various forms
+        // Multi-value roundRobin records have comma-separated values
+        const values = rec.value.split(', ').map(v => normalizeValue(v));
+        for (const v of values) {
+          const key = `${normName}|${normType}|${v}`;
+          existingByKey.set(key, rec);
+        }
+
+        const ntKey = `${normName}|${normType}`;
+        if (!existingByNameType.has(ntKey)) existingByNameType.set(ntKey, []);
+        existingByNameType.get(ntKey)!.push(rec);
+      }
+
+      // Diff selected records against existing
+      const plan: PlanItem[] = [];
+      const matchedExistingIds = new Set<string>(); // track which existing records we matched
+
+      const selectedRecords = records.filter(r => r.selected);
+
+      for (const rec of selectedRecords) {
+        const normName = rec.relativeName.toLowerCase();
+        const normType = rec.type.toUpperCase();
+        const normVal = normalizeValue(rec.value);
+        const exactKey = `${normName}|${normType}|${normVal}`;
+
+        if (existingByKey.has(exactKey)) {
+          // Exact match — skip (already there)
+          const existing = existingByKey.get(exactKey)!;
+          matchedExistingIds.add(`${existing.type}-${existing.id}`);
+          plan.push({
+            action: 'skip',
+            name: rec.relativeName,
+            type: rec.type,
+            value: rec.value,
+            ttl: rec.ttl,
+            existingRecord: existing,
+          });
+        } else {
+          // Check if same name+type exists with different value
+          const ntKey = `${normName}|${normType}`;
+          const sameNameType = existingByNameType.get(ntKey);
+
+          if (sameNameType && sameNameType.length > 0) {
+            // Same name+type exists with different value — update
+            const existing = sameNameType[0];
+            matchedExistingIds.add(`${existing.type}-${existing.id}`);
+            plan.push({
+              action: 'update',
+              name: rec.relativeName,
+              type: rec.type,
+              value: rec.value,
+              ttl: rec.ttl,
+              existingRecord: existing,
+            });
+          } else {
+            // Doesn't exist at all — create
+            plan.push({
+              action: 'create',
+              name: rec.relativeName,
+              type: rec.type,
+              value: rec.value,
+              ttl: rec.ttl,
+            });
+          }
+        }
+      }
+
+      // Find orphans: records in Constellix that we didn't match to any selected record
+      for (const rec of existingRecords) {
+        const key = `${rec.type}-${rec.id}`;
+        if (!matchedExistingIds.has(key)) {
+          plan.push({
+            action: 'delete',
+            name: rec.name || '@',
+            type: rec.type,
+            value: rec.value,
+            ttl: rec.ttl,
+            orphanRecord: rec,
+            includeDelete: false, // unchecked by default
+          });
+        }
+      }
+
+      // Sort: creates first, then updates, then skips, then deletes
+      const actionOrder: Record<PlanAction, number> = { create: 0, update: 1, skip: 2, delete: 3 };
+      plan.sort((a, b) => {
+        const orderDiff = actionOrder[a.action] - actionOrder[b.action];
+        if (orderDiff !== 0) return orderDiff;
+        return a.name.localeCompare(b.name) || a.type.localeCompare(b.type);
+      });
+
+      setPlanItems(plan);
+      setPushPhase('reviewing');
+    } catch (err) {
+      setPlanError((err as Error).message);
+    } finally {
+      setPlanLoading(false);
+    }
+  }
+
+  // Toggle orphan deletion
+  function toggleOrphanDelete(index: number) {
+    setPlanItems(prev => prev.map((item, i) =>
+      i === index && item.action === 'delete'
+        ? { ...item, includeDelete: !item.includeDelete }
+        : item
+    ));
+  }
+
+  // Plan stats
+  const planStats = useMemo(() => {
+    const creates = planItems.filter(i => i.action === 'create').length;
+    const updates = planItems.filter(i => i.action === 'update').length;
+    const skips = planItems.filter(i => i.action === 'skip').length;
+    const orphans = planItems.filter(i => i.action === 'delete');
+    const deletes = orphans.filter(i => i.includeDelete).length;
+    return { creates, updates, skips, orphanTotal: orphans.length, deletes };
+  }, [planItems]);
+
+  const actionCount = planStats.creates + planStats.updates + planStats.deletes;
+
+  // ========================
+  // EXECUTE PLAN
+  // ========================
+  async function handleExecutePlan() {
+    const creds = await getConstellixCredentials();
+    if (!creds) return;
+
+    setPushPhase('executing');
+    setExecErrors([]);
+    setExecSuccesses(0);
+
+    const trimmedDomain = domain.trim().replace(/\.$/, '');
+    const errors: PushError[] = [];
+    let successes = 0;
+
+    // Ensure domain exists
+    setExecProgress({ current: 0, total: actionCount, message: 'Ensuring domain exists...' });
+    const domainResult = await createDomain(creds, trimmedDomain);
+    if (!domainResult.id) {
+      setExecErrors([{ record: trimmedDomain, type: 'DOMAIN', error: domainResult.error || 'Failed' }]);
+      setPushPhase('error');
+      return;
+    }
+    const domainId = domainResult.id;
+
+    // Execute creates
+    const creates = planItems.filter(i => i.action === 'create');
+    if (creates.length > 0) {
+      const dnsRecords: DnsRecord[] = creates.map(i => ({
+        name: i.name,
+        ttl: i.ttl,
+        class: 'IN',
+        type: i.type,
+        value: i.value,
+      }));
+
+      const mapped = mapRecordsForConstellix(dnsRecords, trimmedDomain);
+
+      for (let j = 0; j < mapped.length; j++) {
+        const rec = mapped[j];
+        const displayName = rec.name || '@';
+        setExecProgress({
+          current: successes + errors.length + 1,
+          total: actionCount,
+          message: `Creating ${rec.type.toUpperCase()} ${displayName}`,
+        });
+
+        const result = await createRecord(creds, domainId, rec);
+        if (result.success) {
+          successes++;
+        } else {
+          errors.push({ record: displayName, type: rec.type.toUpperCase(), error: result.error || 'Unknown error' });
+        }
+
+        await new Promise(r => setTimeout(r, 1200));
+      }
+    }
+
+    // Execute updates
+    const updates = planItems.filter(i => i.action === 'update' && i.existingRecord);
+    for (const item of updates) {
+      const rec = item.existingRecord!;
+      setExecProgress({
+        current: successes + errors.length + 1,
+        total: actionCount,
+        message: `Updating ${item.type} ${item.name}`,
+      });
+
+      const result = await updateRecord(
+        creds, domainId, rec.id, rec.type,
+        item.name === '@' ? '' : item.name,
+        item.ttl, item.value,
+      );
+      if (result.success) {
+        successes++;
+      } else {
+        errors.push({ record: item.name, type: item.type, error: result.error || 'Unknown error' });
+      }
+
+      await new Promise(r => setTimeout(r, 1200));
+    }
+
+    // Execute deletes (only the ones user checked)
+    const deletes = planItems.filter(i => i.action === 'delete' && i.includeDelete && i.orphanRecord);
+    for (const item of deletes) {
+      const rec = item.orphanRecord!;
+      setExecProgress({
+        current: successes + errors.length + 1,
+        total: actionCount,
+        message: `Deleting ${item.type} ${item.name}`,
+      });
+
+      const result = await deleteRecord(creds, domainId, rec.id, rec.type);
+      if (result.success) {
+        successes++;
+      } else {
+        errors.push({ record: item.name, type: item.type, error: result.error || 'Unknown error' });
+      }
+
+      await new Promise(r => setTimeout(r, 1200));
+    }
+
+    setExecSuccesses(successes);
+    setExecErrors(errors);
+    setExecProgress({ current: actionCount, total: actionCount, message: 'Done' });
+    setPushPhase('done');
   }
 
   // Export as zone file
@@ -334,7 +610,11 @@ export default function MigrateView() {
     URL.revokeObjectURL(url);
   }
 
-  const pushBusy = pushPhase === 'creating_domain' || pushPhase === 'pushing_records';
+  function handleCancelPlan() {
+    setPushPhase('idle');
+    setPlanItems([]);
+    setPlanError('');
+  }
 
   return (
     <div className="migrate-view">
@@ -580,14 +860,14 @@ export default function MigrateView() {
       )}
 
       {/* Section C: Actions */}
-      {hasScanned && records.length > 0 && (
+      {hasScanned && records.length > 0 && pushPhase === 'idle' && (
         <div className="migrate-actions-card">
           <button
             className="btn btn-primary"
-            onClick={handlePush}
-            disabled={pushBusy || selectedCount === 0}
+            onClick={handleReviewPush}
+            disabled={planLoading || selectedCount === 0}
           >
-            {pushBusy ? 'Pushing...' : `Push ${selectedCount} Records to Constellix`}
+            {planLoading ? 'Checking Constellix...' : `Review & Push ${selectedCount} Records`}
           </button>
           <button
             className="btn btn-secondary"
@@ -597,62 +877,196 @@ export default function MigrateView() {
             Export as Zone File
           </button>
           <div style={{ flex: 1 }} />
+          {planError && <span className="error-text">{planError}</span>}
           {selectedCount === 0 && (
             <span className="muted">Select records to enable actions</span>
           )}
         </div>
       )}
 
-      {/* Push Progress / Results */}
-      {pushBusy && pushProgress && (
+      {/* Push Review Plan */}
+      {pushPhase === 'reviewing' && (
+        <div className="push-plan">
+          <h3>Push Plan</h3>
+          <p className="subtitle">
+            Compared your {selectedCount} selected records against what's currently in Constellix.
+          </p>
+
+          {/* Stats */}
+          <div className="push-plan-stats">
+            {planStats.creates > 0 && (
+              <div className="plan-stat plan-stat-create">
+                <span className="plan-stat-num">{planStats.creates}</span> to create
+              </div>
+            )}
+            {planStats.updates > 0 && (
+              <div className="plan-stat plan-stat-update">
+                <span className="plan-stat-num">{planStats.updates}</span> to update
+              </div>
+            )}
+            {planStats.skips > 0 && (
+              <div className="plan-stat plan-stat-skip">
+                <span className="plan-stat-num">{planStats.skips}</span> already there
+              </div>
+            )}
+            {planStats.orphanTotal > 0 && (
+              <div className="plan-stat plan-stat-delete">
+                <span className="plan-stat-num">{planStats.orphanTotal}</span> in Constellix not selected
+              </div>
+            )}
+          </div>
+
+          {/* Detail table for creates and updates */}
+          {(planStats.creates > 0 || planStats.updates > 0) && (
+            <div className="push-plan-details">
+              <table className="push-plan-table">
+                <thead>
+                  <tr>
+                    <th>Action</th>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {planItems.filter(i => i.action === 'create' || i.action === 'update').map((item, idx) => (
+                    <tr key={`${item.action}-${idx}`}>
+                      <td>
+                        <span className={`plan-action-badge plan-action-${item.action}`}>
+                          {item.action}
+                        </span>
+                      </td>
+                      <td className="curation-name">{item.name}</td>
+                      <td><span className={`badge badge-${item.type.toLowerCase()}`}>{item.type}</span></td>
+                      <td className="curation-value" title={item.value}>
+                        {item.value}
+                        {item.action === 'update' && item.existingRecord && (
+                          <span className="muted" style={{ display: 'block', fontSize: '0.72rem' }}>
+                            was: {item.existingRecord.value}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {planStats.creates === 0 && planStats.updates === 0 && planStats.orphanTotal === 0 && (
+            <div className="summary summary-success">
+              All selected records already exist in Constellix. Nothing to do.
+            </div>
+          )}
+
+          {/* Orphans section */}
+          {planStats.orphanTotal > 0 && (
+            <div className="push-plan-orphans">
+              <button className="orphan-toggle" onClick={() => setShowOrphans(!showOrphans)}>
+                {showOrphans ? '▾' : '▸'} {planStats.orphanTotal} record{planStats.orphanTotal !== 1 ? 's' : ''} in Constellix not in your selection
+                {planStats.deletes > 0 && ` (${planStats.deletes} marked for deletion)`}
+              </button>
+              {showOrphans && (
+                <div className="orphan-list">
+                  <p className="muted" style={{ marginBottom: '0.5rem', fontSize: '0.8rem' }}>
+                    Check any records you want to <strong>delete</strong> from Constellix. Unchecked orphans will be left alone.
+                  </p>
+                  {planItems.filter(i => i.action === 'delete').map((item, idx) => {
+                    const globalIdx = planItems.indexOf(item);
+                    return (
+                      <div key={`orphan-${idx}`} className="orphan-row">
+                        <div className="checkbox-cell">
+                          <input
+                            type="checkbox"
+                            checked={item.includeDelete || false}
+                            onChange={() => toggleOrphanDelete(globalIdx)}
+                          />
+                        </div>
+                        <span className={`badge badge-${item.type.toLowerCase()}`}>{item.type}</span>
+                        <span className="orphan-name">{item.name}</span>
+                        <span className="orphan-value" title={item.value}>{item.value}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="push-plan-actions">
+            <button className="btn btn-ghost" onClick={handleCancelPlan}>
+              Cancel
+            </button>
+            <div style={{ flex: 1 }} />
+            {actionCount > 0 ? (
+              <button className="btn btn-primary" onClick={handleExecutePlan}>
+                Execute: {planStats.creates > 0 ? `${planStats.creates} create` : ''}
+                {planStats.creates > 0 && planStats.updates > 0 ? ', ' : ''}
+                {planStats.updates > 0 ? `${planStats.updates} update` : ''}
+                {(planStats.creates > 0 || planStats.updates > 0) && planStats.deletes > 0 ? ', ' : ''}
+                {planStats.deletes > 0 ? `${planStats.deletes} delete` : ''}
+              </button>
+            ) : (
+              <span className="muted">Nothing to execute</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Execution Progress */}
+      {pushPhase === 'executing' && (
         <div className="card">
           <div className="push-progress">
             <div className="phase-indicator">
-              <span className={`phase-dot phase-${pushPhase}`} />
-              <span>
-                {pushPhase === 'creating_domain' && 'Creating domain...'}
-                {pushPhase === 'pushing_records' && 'Pushing records...'}
+              <span className="phase-dot phase-pushing_records" />
+              <span>Executing changes...</span>
+            </div>
+            <div className="progress-bar">
+              <div
+                className="progress-fill"
+                style={{ width: execProgress.total ? `${(execProgress.current / execProgress.total) * 100}%` : '0%' }}
+              />
+              <span className="progress-text">
+                {execProgress.message} ({execProgress.current}/{execProgress.total})
               </span>
             </div>
-            {pushProgress.total > 0 && (
-              <div className="progress-bar">
-                <div
-                  className="progress-fill"
-                  style={{ width: `${(pushProgress.current / pushProgress.total) * 100}%` }}
-                />
-                <span className="progress-text">
-                  {pushProgress.message} ({pushProgress.current}/{pushProgress.total})
-                </span>
-              </div>
-            )}
-            {pushProgress.total === 0 && (
-              <p className="muted">{pushProgress.message}</p>
-            )}
           </div>
         </div>
       )}
 
-      {pushPhase === 'done' && pushProgress && (
+      {/* Done */}
+      {pushPhase === 'done' && (
         <div className="card">
-          <div className={`summary ${pushProgress.errors.length === 0 ? 'summary-success' : 'summary-warning'}`}>
-            {pushProgress.errors.length === 0 ? (
-              <span>All {pushProgress.successes} records pushed successfully.</span>
+          <div className={`summary ${execErrors.length === 0 ? 'summary-success' : 'summary-warning'}`}>
+            {execErrors.length === 0 ? (
+              <span>All {execSuccesses} changes applied successfully.</span>
             ) : (
-              <span>{pushProgress.successes} succeeded, {pushProgress.errors.length} failed</span>
+              <span>{execSuccesses} succeeded, {execErrors.length} failed</span>
             )}
           </div>
-          {pushProgress.errors.length > 0 && (
-            <PushErrorTable errors={pushProgress.errors} />
+          {execErrors.length > 0 && (
+            <PushErrorTable errors={execErrors} />
           )}
+          <div style={{ marginTop: '0.75rem' }}>
+            <button className="btn btn-ghost" onClick={() => setPushPhase('idle')}>
+              Back to Curation
+            </button>
+          </div>
         </div>
       )}
 
-      {pushPhase === 'error' && pushProgress && (
+      {/* Error */}
+      {pushPhase === 'error' && (
         <div className="card">
-          <p className="error-text">{pushProgress.message}</p>
-          {pushProgress.errors.length > 0 && (
-            <PushErrorTable errors={pushProgress.errors} />
-          )}
+          <p className="error-text">
+            {execErrors.length > 0 ? execErrors[0].error : 'An error occurred.'}
+          </p>
+          <div style={{ marginTop: '0.75rem' }}>
+            <button className="btn btn-ghost" onClick={() => setPushPhase('idle')}>
+              Back
+            </button>
+          </div>
         </div>
       )}
     </div>
