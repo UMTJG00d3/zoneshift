@@ -69,6 +69,7 @@ export default function App() {
 
       <footer className="app-footer">
         <span>ZoneShift &mdash; Umetech MSP</span>
+        <span className="build-version">build {(typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : 'dev').replace(/T/, ' ').replace(/\.\d+Z$/, ' UTC')}</span>
         <button className="btn btn-ghost btn-sm export-btn" onClick={exportForOversite}>
           Export for Over-Site
         </button>

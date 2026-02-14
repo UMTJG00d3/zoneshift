@@ -63,8 +63,8 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
 
   async function loadRecords(preserveMessages = false) {
-    setMode('loading');
     if (!preserveMessages) {
+      setMode('loading');
       setError('');
       setSuccessMsg('');
     }
@@ -72,8 +72,8 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
     // Get domain ID first
     const domainRes = await getDomainId(credentials, domain);
     if (!domainRes.id) {
-      setError(domainRes.error || 'Domain not found');
-      setMode('idle');
+      setError((preserveMessages ? error + '\n' : '') + (domainRes.error || 'Domain not found'));
+      if (!preserveMessages) setMode('idle');
       return;
     }
 
@@ -82,8 +82,8 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
     // Load records
     const recordsRes = await listRecords(credentials, domainRes.id);
     if (recordsRes.error) {
-      setError(recordsRes.error);
-      setMode('idle');
+      setError((preserveMessages ? error + '\n' : '') + recordsRes.error);
+      if (!preserveMessages) setMode('idle');
       return;
     }
 
