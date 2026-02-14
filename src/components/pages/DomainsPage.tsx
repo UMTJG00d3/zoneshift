@@ -181,9 +181,9 @@ export default function DomainsPage() {
         </a>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-xs">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none">
+      <div className="flex flex-col gap-3">
+        <div className="relative">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none">
             <circle cx="11" cy="11" r="8" />
             <path d="m21 21-4.3-4.3" />
           </svg>
@@ -192,17 +192,19 @@ export default function DomainsPage() {
             placeholder="Search domains..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="w-full font-sans text-sm py-2 pl-9 pr-3 bg-surface-card border border-[#475569] rounded-md text-text-primary placeholder:text-text-muted focus:outline-none focus:border-transparent focus:ring-2 focus:ring-accent-blue"
+            className="w-full font-sans text-sm py-3 pl-11 pr-4 bg-surface border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent-blue"
           />
         </div>
-        <button
-          className="btn btn-secondary"
-          onClick={loadDomains}
-          disabled={loading}
-        >
-          {loading ? 'Loading...' : 'Refresh'}
-        </button>
-        {loadingNS && <span className="text-text-muted text-xs">Checking NS records...</span>}
+        <div className="flex items-center gap-3">
+          <button
+            className="btn btn-secondary"
+            onClick={loadDomains}
+            disabled={loading}
+          >
+            {loading ? 'Loading...' : 'Refresh'}
+          </button>
+          {loadingNS && <span className="text-text-muted text-xs">Checking NS records...</span>}
+        </div>
       </div>
 
       {error && <p className="text-accent-red text-sm">{error}</p>}
@@ -325,7 +327,7 @@ function EmailQuickBadge({ info }: { info?: DomainEmailQuick }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${colorMap[info.overall]}`}
+      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${colorMap[info.overall]}`}
       title={`SPF: ${info.spf}, DMARC: ${info.dmarc}`}
     >
       {iconMap[info.overall]}

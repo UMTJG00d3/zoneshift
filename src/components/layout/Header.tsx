@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
 
-declare const __BUILD_TIME__: string;
-
 interface UserInfo {
   displayName: string;
   userRoles: string[];
@@ -24,10 +22,6 @@ export default function Header() {
       .catch(() => { /* not authenticated or unavailable */ });
   }, []);
 
-  const buildTime = (typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : 'dev')
-    .replace(/T/, ' ')
-    .replace(/\.\d+Z$/, ' UTC');
-
   return (
     <header className="flex items-center h-14 px-4 border-b border-border bg-surface-dark shrink-0">
       <a href="#/domains" className="flex items-center gap-2 no-underline">
@@ -37,14 +31,10 @@ export default function Header() {
         <span className="text-text-primary font-bold text-lg">ZoneShift</span>
       </a>
 
-      <span className="ml-3 text-text-muted text-[10px] font-mono opacity-50 hidden sm:inline">
-        {buildTime}
-      </span>
-
-      <div className="ml-auto flex items-center gap-3">
+      <div className="ml-auto flex items-center gap-4">
         {user && (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-full text-text-secondary text-xs font-medium">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-60">
+          <span className="inline-flex items-center gap-2 text-text-primary text-sm font-medium">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary">
               <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
               <circle cx="12" cy="7" r="4" />
             </svg>

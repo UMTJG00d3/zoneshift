@@ -84,9 +84,9 @@ export default function Sidebar({ route }: SidebarProps) {
               key={item.page}
               href={item.path}
               className={`
-                flex items-center gap-3 px-3 py-2 mx-2 rounded-md no-underline transition-colors text-sm font-medium
+                flex items-center gap-3 px-3 py-2.5 mx-2 rounded-md no-underline transition-colors text-sm font-medium
                 ${active
-                  ? 'bg-accent-blue/15 text-accent-blue border-l-2 border-accent-blue'
+                  ? 'bg-accent-blue text-white'
                   : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
                 }
               `}

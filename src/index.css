@@ -352,9 +352,14 @@ h4 {
 .comparison-table td,
 .domain-table td,
 .audit-table td {
-  padding: 0.5rem 0.75rem;
+  padding: 0.75rem 0.75rem;
   border-bottom: 1px solid var(--border-color);
   color: var(--text-primary);
+}
+
+/* Domain table gets extra tall rows like Pax8 */
+.domain-table td {
+  padding: 1rem 0.75rem;
 }
 
 .record-table tbody tr,
@@ -1425,16 +1430,16 @@ textarea {
 
 .domain-name {
   font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--text-primary);
+  font-weight: 600;
+  color: #fff;
 }
 
 .domain-status {
   display: inline-flex;
   align-items: center;
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   font-weight: 500;
-  padding: 0.125rem 0.625rem;
+  padding: 0.25rem 0.75rem;
   border-radius: 9999px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -1467,9 +1472,9 @@ textarea {
 .dns-status {
   display: inline-flex;
   align-items: center;
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   font-weight: 500;
-  padding: 0.125rem 0.625rem;
+  padding: 0.25rem 0.75rem;
   border-radius: 9999px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
