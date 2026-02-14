@@ -11,8 +11,7 @@
         },
         "login": {
           "loginParameters": ["scope=openid profile email"]
-        },
-        "userDetailsClaim": "http://schemas.microsoft.com/identity/claims/objectidentifier"
+        }
       }
     }
   },

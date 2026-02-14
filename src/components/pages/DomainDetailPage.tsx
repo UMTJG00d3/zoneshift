@@ -42,17 +42,16 @@ export default function DomainDetailPage({ domain }: DomainDetailPageProps) {
   }, [domain]);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <button
-          className="btn btn-ghost btn-sm"
+          className="btn btn-secondary btn-sm"
           onClick={() => navigate('/domains')}
         >
           &larr; Back
         </button>
-        <h2 className="text-xl font-semibold">{domain}</h2>
-        <span className="text-text-muted text-xs">&mdash;</span>
+        <h1 className="text-2xl font-bold text-text-primary">{domain}</h1>
       </div>
 
       {/* Sub-tabs */}

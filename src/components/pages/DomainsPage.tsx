@@ -170,20 +170,31 @@ export default function DomainsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      {/* Page header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold">Domains</h2>
-          <p className="text-text-secondary text-sm mt-0.5">Manage DNS records and monitor domain health</p>
+          <h1 className="text-2xl font-bold text-text-primary">Domains</h1>
+          <p className="mt-1 text-sm text-text-muted">Manage DNS records and monitor domain health</p>
         </div>
-        <a href="#/migrate" className="btn btn-primary">
-          Add Domain
-        </a>
+        <div className="mt-4 sm:mt-0 flex items-center gap-2">
+          <button
+            className="btn btn-secondary"
+            onClick={loadDomains}
+            disabled={loading}
+          >
+            {loading ? 'Loading...' : 'Refresh'}
+          </button>
+          <a href="#/migrate" className="btn btn-primary">
+            Add Domain
+          </a>
+        </div>
       </div>
 
-      <div className="flex flex-col gap-3">
+      {/* Search card */}
+      <div className="card p-4">
         <div className="relative">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none">
             <circle cx="11" cy="11" r="8" />
             <path d="m21 21-4.3-4.3" />
           </svg>
@@ -192,21 +203,12 @@ export default function DomainsPage() {
             placeholder="Search domains..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="w-full font-sans text-sm py-3 pl-11 pr-4 bg-surface border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent-blue"
+            className="w-full font-sans text-sm py-2 pl-10 pr-4 bg-surface-dark border border-border rounded-md text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-accent-blue"
           />
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            className="btn btn-secondary"
-            onClick={loadDomains}
-            disabled={loading}
-          >
-            {loading ? 'Loading...' : 'Refresh'}
-          </button>
-          {loadingNS && <span className="text-text-muted text-xs">Checking NS records...</span>}
         </div>
       </div>
 
+      {loadingNS && <p className="text-text-muted text-xs">Checking NS records...</p>}
       {error && <p className="text-accent-red text-sm">{error}</p>}
 
       {loading && domains.length === 0 && (
@@ -218,11 +220,13 @@ export default function DomainsPage() {
       )}
 
       {filteredDomains.length > 0 && (
-        <div className="bg-surface border border-border rounded-lg overflow-hidden">
-          <div className="px-3 py-2 border-b border-border bg-surface-card/50 text-text-secondary text-xs">
-            {filteredDomains.length} domain{filteredDomains.length !== 1 ? 's' : ''}
-            {searchTerm && ` matching "${searchTerm}"`}
-          </div>
+        <div>
+          {searchTerm && (
+            <div className="mb-2 text-sm text-text-muted">
+              {filteredDomains.length} of {domains.length} domains shown
+            </div>
+          )}
+          <div className="card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="domain-table">
               <thead>
@@ -302,6 +306,7 @@ export default function DomainsPage() {
                 })}
               </tbody>
             </table>
+          </div>
           </div>
         </div>
       )}

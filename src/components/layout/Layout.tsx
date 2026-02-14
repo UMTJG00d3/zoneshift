@@ -10,19 +10,17 @@ interface LayoutProps {
 
 export default function Layout({ route, children }: LayoutProps) {
   return (
-    <div className="flex flex-col h-screen bg-surface-dark text-text-primary overflow-hidden">
+    <div className="min-h-screen bg-surface-dark text-text-primary">
       <Header />
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar route={route} />
-        <main className="flex-1 overflow-y-auto px-8 py-6">
-          <div className="max-w-7xl mx-auto">
+      <Sidebar route={route} />
+
+      <div className="lg:pl-64">
+        <main className="py-6">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             {children}
           </div>
         </main>
       </div>
-      <footer className="flex items-center justify-center px-4 py-1.5 border-t border-border bg-surface-dark text-text-muted text-[11px] shrink-0">
-        <span>ZoneShift &mdash; Umetech MSP</span>
-      </footer>
     </div>
   );
 }
