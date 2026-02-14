@@ -15,7 +15,7 @@ interface DnsRecord {
   value: string;
 }
 
-// Common subdomains to check during discovery
+// Common subdomains to check during discovery (reduced list for performance)
 const COMMON_SUBDOMAINS = [
   '@',          // apex
   'www',
@@ -28,98 +28,23 @@ const COMMON_SUBDOMAINS = [
   'autodiscover',
   'autoconfig',
   'pop',
-  'pop3',
   'imap',
   'smtp',
   'remote',
   'vpn',
-  'portal',
   'admin',
   'api',
   'app',
-  'dev',
-  'staging',
-  'test',
-  'blog',
-  'shop',
-  'store',
-  'cdn',
-  'static',
-  'assets',
-  'img',
-  'images',
-  'media',
-  'files',
-  'docs',
-  'support',
-  'help',
-  'status',
-  'm',
-  'mobile',
-  'ns1',
-  'ns2',
-  'dns',
-  'mx',
-  'mx1',
-  'mx2',
-  'relay',
-  'gateway',
-  'secure',
-  'login',
-  'sso',
-  'auth',
-  'calendar',
-  'meet',
-  'conference',
-  'video',
-  'cloud',
-  'backup',
-  'db',
-  'sql',
-  'mysql',
-  'postgres',
-  'redis',
-  'cache',
-  'search',
-  'elk',
-  'monitor',
-  'metrics',
-  'grafana',
-  'prometheus',
-  'jenkins',
-  'gitlab',
-  'git',
-  'ci',
-  'deploy',
-  'k8s',
-  'kubernetes',
-  'docker',
-  'registry',
   'cpcontacts',
   'cpcalendars',
   '_dmarc',
   'selector1._domainkey',
   'selector2._domainkey',
   'default._domainkey',
-  'google._domainkey',
-  'k1._domainkey',
-  '_domainkey',
   'enterpriseregistration',
   'enterpriseenrollment',
   'lyncdiscover',
   'sip',
-  '_sipfederationtls._tcp',
-  '_sip._tls',
-  '_autodiscover._tcp',
-  '_caldav._tcp',
-  '_caldavs._tcp',
-  '_carddav._tcp',
-  '_carddavs._tcp',
-  '_imap._tcp',
-  '_imaps._tcp',
-  '_pop3._tcp',
-  '_pop3s._tcp',
-  '_submission._tcp',
 ];
 
 const RECORD_TYPES = ["A", "AAAA", "MX", "TXT", "CNAME", "NS", "SRV", "CAA"];
@@ -339,14 +264,25 @@ async function discoverAllRecords(
   return { records: uniqueRecords, subdomainsChecked: fqdns.length, errors };
 }
 
+// Wrap DNS query with timeout
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('DNS query timeout')), ms)
+    ),
+  ]);
+}
+
 async function queryDns(
   nameserverIp: string,
   domain: string,
   type: string
 ): Promise<DnsRecord[]> {
-  return new Promise((resolve, reject) => {
+  const queryPromise = new Promise<DnsRecord[]>((resolve, reject) => {
     const resolver = new dns.Resolver();
     resolver.setServers([nameserverIp]);
+    resolver.setLocalAddress('0.0.0.0'); // Use default interface
 
     switch (type) {
       case "A":
@@ -407,6 +343,9 @@ async function queryDns(
         reject(new Error(`Unsupported type: ${type}`));
     }
   });
+
+  // Wrap with 5 second timeout
+  return withTimeout(queryPromise, 5000);
 }
 
 function parseResult(domain: string, type: string, result: unknown): DnsRecord[] {
