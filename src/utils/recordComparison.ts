@@ -21,7 +21,7 @@ export interface ComparisonResult {
   newCount: number;
 }
 
-function normalizeValue(value: string): string {
+export function normalizeValue(value: string): string {
   return value
     .replace(/\.$/, '')
     .replace(/^"|"$/g, '')

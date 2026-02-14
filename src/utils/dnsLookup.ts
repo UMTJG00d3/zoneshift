@@ -110,7 +110,7 @@ export async function queryAllRecords(
   return deduplicateRecords(results);
 }
 
-function deduplicateRecords(records: ResolvedRecord[]): ResolvedRecord[] {
+export function deduplicateRecords(records: ResolvedRecord[]): ResolvedRecord[] {
   const seen = new Set<string>();
   return records.filter((r) => {
     const key = `${r.name}|${r.type}|${r.value}`;
@@ -190,4 +190,90 @@ export async function queryAllRecordsFromNS(
   }
 
   return deduplicateRecords(results);
+}
+
+export interface SourceConfig {
+  id: string;
+  label: string;
+  hostname: string;
+  color: string;
+}
+
+export interface SourcedRecord {
+  name: string;
+  type: string;
+  value: string;
+  ttl: number;
+  sources: string[]; // source IDs
+}
+
+/**
+ * Query multiple nameservers in parallel and merge results with source tracking.
+ */
+export async function queryMultipleSources(
+  sources: SourceConfig[],
+  domain: string,
+  subdomains: string[],
+  types: string[],
+  onProgress?: (done: number, total: number, sourceLabel: string) => void,
+): Promise<SourcedRecord[]> {
+  const totalQueriesPerSource = subdomains.length * types.length;
+  const totalQueries = sources.length * totalQueriesPerSource;
+  let globalDone = 0;
+
+  // Query all sources in parallel
+  const sourceResults = await Promise.all(
+    sources.map(async (source) => {
+      const records = await queryAllRecordsFromNS(
+        source.hostname,
+        domain,
+        subdomains,
+        types,
+        () => {
+          globalDone++;
+          onProgress?.(globalDone, totalQueries, source.label);
+        },
+      );
+      return { sourceId: source.id, records };
+    }),
+  );
+
+  // Merge records across sources, tracking provenance
+  const merged = new Map<string, SourcedRecord>();
+
+  for (const { sourceId, records } of sourceResults) {
+    for (const rec of records) {
+      const normVal = rec.value
+        .replace(/\.$/, '')
+        .replace(/^"|"$/g, '')
+        .toLowerCase()
+        .trim();
+      const key = `${rec.name.toLowerCase()}|${rec.type}|${normVal}`;
+
+      if (merged.has(key)) {
+        const existing = merged.get(key)!;
+        if (!existing.sources.includes(sourceId)) {
+          existing.sources.push(sourceId);
+        }
+      } else {
+        merged.set(key, {
+          name: rec.name,
+          type: rec.type,
+          value: rec.value,
+          ttl: rec.ttl,
+          sources: [sourceId],
+        });
+      }
+    }
+  }
+
+  // Sort by name, then type
+  const results = [...merged.values()];
+  results.sort((a, b) => {
+    const nameCompare = a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+    if (nameCompare !== 0) return nameCompare;
+    return a.type.localeCompare(b.type);
+  });
+
+  return results;
 }
