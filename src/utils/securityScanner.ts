@@ -205,21 +205,26 @@ export async function analyzeCnameRecords(
     onProgress?.(`Checking CNAME target: ${record.value}...`);
 
     try {
-      const answers = await dohLookup(record.value, 'A');
+      // Check multiple record types — DKIM selectors resolve to TXT, not A
+      const [aAnswers, txtAnswers, cnameAnswers] = await Promise.all([
+        dohLookup(record.value, 'A').catch(() => []),
+        dohLookup(record.value, 'TXT').catch(() => []),
+        dohLookup(record.value, 'CNAME').catch(() => []),
+      ]);
 
-      if (!answers || answers.length === 0) {
-        // No A records found - could be dangling CNAME
+      const hasAny = (aAnswers.length + txtAnswers.length + cnameAnswers.length) > 0;
+
+      if (!hasAny) {
         findings.push({
           id: generateFindingId(),
           severity: 'critical',
           type: 'DANGLING_CNAME',
           records: [record],
-          issue: `CNAME target "${record.value}" has no A records`,
+          issue: `CNAME target "${record.value}" does not resolve to any record`,
           recommendation: `Remove dangling CNAME record - subdomain takeover risk`,
         });
       }
     } catch {
-      // Treat errors as potential issues
       findings.push({
         id: generateFindingId(),
         severity: 'warning',
