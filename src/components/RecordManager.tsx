@@ -50,8 +50,9 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
   const [formTtl, setFormTtl] = useState('3600');
   const [formValue, setFormValue] = useState('');
 
-  // Form ref for scroll-into-view
+  // Refs for scroll-into-view
   const formRef = useRef<HTMLDivElement>(null);
+  const pendingRef = useRef<HTMLDivElement>(null);
 
   // Filter/search
   const [filterText, setFilterText] = useState('');
@@ -170,7 +171,11 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
 
     setEditingRecord(null);
     setMode('viewing');
-    setTimeout(() => setSuccessMsg(''), 3000);
+    // Scroll pending panel into view so user sees the queued change
+    setTimeout(() => {
+      pendingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
+    setTimeout(() => setSuccessMsg(''), 5000);
   }
 
   function removeFromQueue(changeId: string) {
@@ -384,7 +389,7 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
         <>
           {/* Pending Changes Panel */}
           {pendingChanges.length > 0 && (
-            <div className="pending-changes-panel">
+            <div className="pending-changes-panel" ref={pendingRef}>
               <div className="pending-header">
                 <h4>Pending Changes ({pendingChanges.length})</h4>
                 <div className="pending-actions">
