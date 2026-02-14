@@ -1,79 +1,24 @@
-import { useState, useEffect } from 'react';
-import MigrateView from './components/MigrateView';
-import DomainBrowser from './components/DomainBrowser';
-import SecurityScanner from './components/SecurityScanner';
-import Settings from './components/Settings';
-import { exportForOversite } from './utils/oversiteExport';
-
-type AppTab = 'migrate' | 'domains' | 'security' | 'settings';
+import { useRoute } from './utils/router';
+import { CredentialsProvider } from './context/CredentialsContext';
+import Layout from './components/layout/Layout';
+import DomainsPage from './components/pages/DomainsPage';
+import DomainDetailPage from './components/pages/DomainDetailPage';
+import MigratePage from './components/pages/MigratePage';
+import SettingsPage from './components/pages/SettingsPage';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<AppTab>('migrate');
-
-  // Handle navigation events from child components
-  useEffect(() => {
-    const handleNavigate = (e: Event) => {
-      const customEvent = e as CustomEvent<string>;
-      const tab = customEvent.detail;
-      if (tab === 'settings' || tab === 'domains' || tab === 'security' || tab === 'migrate') {
-        setActiveTab(tab as AppTab);
-      }
-    };
-    window.addEventListener('navigate-tab', handleNavigate);
-    return () => window.removeEventListener('navigate-tab', handleNavigate);
-  }, []);
+  const route = useRoute();
 
   return (
-    <div className="app">
-      <header className="app-header">
-        <h1>
-          <span className="logo">Z</span>
-          ZoneShift
-        </h1>
-        <span className="header-subtitle">DNS Migration &amp; Management</span>
-      </header>
-
-      <nav className="tab-nav">
-        <button
-          className={`tab-btn ${activeTab === 'migrate' ? 'tab-btn-active' : ''}`}
-          onClick={() => setActiveTab('migrate')}
-        >
-          Migrate
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'domains' ? 'tab-btn-active' : ''}`}
-          onClick={() => setActiveTab('domains')}
-        >
-          Domains
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'security' ? 'tab-btn-active' : ''}`}
-          onClick={() => setActiveTab('security')}
-        >
-          Security
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'settings' ? 'tab-btn-active' : ''}`}
-          onClick={() => setActiveTab('settings')}
-        >
-          Settings
-        </button>
-      </nav>
-
-      <main className="app-main">
-        {activeTab === 'migrate' && <MigrateView />}
-        {activeTab === 'domains' && <DomainBrowser />}
-        {activeTab === 'security' && <SecurityScanner />}
-        {activeTab === 'settings' && <Settings />}
-      </main>
-
-      <footer className="app-footer">
-        <span>ZoneShift &mdash; Umetech MSP</span>
-        <span className="build-version">build {(typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : 'dev').replace(/T/, ' ').replace(/\.\d+Z$/, ' UTC')}</span>
-        <button className="btn btn-ghost btn-sm export-btn" onClick={exportForOversite}>
-          Export for Over-Site
-        </button>
-      </footer>
-    </div>
+    <CredentialsProvider>
+      <Layout route={route}>
+        {route.page === 'domains' && <DomainsPage />}
+        {route.page === 'domain-detail' && (
+          <DomainDetailPage domain={route.params.name} />
+        )}
+        {route.page === 'migrate' && <MigratePage />}
+        {route.page === 'settings' && <SettingsPage />}
+      </Layout>
+    </CredentialsProvider>
   );
 }

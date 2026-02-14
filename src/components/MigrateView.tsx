@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import {
   SourceConfig,
   SourcedRecord,
@@ -113,9 +113,9 @@ export default function MigrateView() {
   const [sourceFilter, setSourceFilter] = useState('All');
 
   // Zone file import
-  const [showZoneImport, setShowZoneImport] = useState(false);
   const [zoneText, setZoneText] = useState('');
   const [zoneImportMsg, setZoneImportMsg] = useState('');
+  const importDialogRef = useRef<HTMLDialogElement>(null);
 
   // Section C: Push plan
   const [pushPhase, setPushPhase] = useState<PushPhase>('idle');
@@ -242,7 +242,7 @@ export default function MigrateView() {
     try {
       const parsed = parseZoneFile(zoneText);
       if (parsed.records.length === 0) {
-        setZoneImportMsg('No records found in zone file.');
+        setZoneImportMsg('No records found in the pasted content.');
         return;
       }
 
@@ -283,8 +283,8 @@ export default function MigrateView() {
 
       setRecords([...existing.values()]);
       setHasScanned(true);
-      setZoneImportMsg(`Imported ${added} new records from zone file (${parsed.records.length} total parsed).`);
-      setShowZoneImport(false);
+      setZoneImportMsg(`Imported ${added} new records (${parsed.records.length} total parsed).`);
+      importDialogRef.current?.close();
     } catch (err) {
       setZoneImportMsg(`Parse error: ${(err as Error).message}`);
     }
@@ -705,6 +705,13 @@ export default function MigrateView() {
           <button className="btn btn-ghost btn-sm" onClick={addSource} disabled={scanning}>
             + Add Source
           </button>
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => importDialogRef.current?.showModal()}
+            disabled={scanning}
+          >
+            Import Records
+          </button>
           <div style={{ flex: 1 }} />
           <button
             className="btn btn-primary"
@@ -730,34 +737,6 @@ export default function MigrateView() {
 
         {scanError && <p className="error-text">{scanError}</p>}
         {zoneImportMsg && <p className={zoneImportMsg.startsWith('Parse') ? 'error-text' : 'success-text'}>{zoneImportMsg}</p>}
-
-        {/* Zone File Import (collapsible) */}
-        <div className="zone-import-section">
-          <button
-            className="zone-import-toggle"
-            onClick={() => setShowZoneImport(!showZoneImport)}
-          >
-            {showZoneImport ? '▾' : '▸'} Import Zone File
-          </button>
-          {showZoneImport && (
-            <div className="zone-import-body">
-              <textarea
-                className="zone-textarea"
-                rows={8}
-                placeholder="Paste BIND zone file or cPanel export here..."
-                value={zoneText}
-                onChange={e => setZoneText(e.target.value)}
-              />
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={handleZoneImport}
-                disabled={!zoneText.trim()}
-              >
-                Parse & Import
-              </button>
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Section B: Record Curation Table */}
@@ -1092,6 +1071,72 @@ export default function MigrateView() {
           </div>
         </div>
       )}
+
+      {/* Import Records Modal */}
+      <dialog
+        ref={importDialogRef}
+        className="import-dialog"
+        onClick={(e) => {
+          // Close on backdrop click
+          if (e.target === importDialogRef.current) {
+            importDialogRef.current?.close();
+          }
+        }}
+      >
+        <div className="import-dialog-content">
+          <div className="import-dialog-header">
+            <h3>Import Records</h3>
+            <button
+              className="btn-icon"
+              onClick={() => importDialogRef.current?.close()}
+            >
+              &times;
+            </button>
+          </div>
+          <p className="muted" style={{ marginBottom: '0.75rem' }}>
+            Paste DNS records from any source: BIND zone files, cPanel exports, or copy-paste
+            from a web-based DNS manager (the table columns will be auto-detected).
+          </p>
+          <textarea
+            className="zone-textarea"
+            rows={12}
+            placeholder={"Paste records here...\n\nSupported formats:\n• BIND zone file export\n• cPanel DNS table copy\n• Web DNS manager copy-paste (Type / Name / Value / TTL columns)"}
+            value={zoneText}
+            onChange={e => setZoneText(e.target.value)}
+          />
+          {zoneImportMsg && (
+            <p className={zoneImportMsg.startsWith('Parse') ? 'error-text' : 'success-text'} style={{ marginTop: '0.5rem' }}>
+              {zoneImportMsg}
+            </p>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.75rem' }}>
+            <button
+              className="btn btn-ghost"
+              onClick={() => {
+                importDialogRef.current?.close();
+                setZoneImportMsg('');
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                handleZoneImport();
+                // Close on success (message won't start with 'Parse')
+                setTimeout(() => {
+                  if (!zoneImportMsg.startsWith('Parse')) {
+                    importDialogRef.current?.close();
+                  }
+                }, 100);
+              }}
+              disabled={!zoneText.trim()}
+            >
+              Parse & Import
+            </button>
+          </div>
+        </div>
+      </dialog>
     </div>
   );
 }

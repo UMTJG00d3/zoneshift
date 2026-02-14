@@ -14,17 +14,20 @@ import {
   generateChangesetFromFindings,
 } from '../utils/securityScanner';
 import { downloadJson } from '../utils/changesetExecutor';
-import { ConstellixCredentials as ConstellixCredsType, listRecords, getDomainId } from '../utils/constellixApi';
-import { getConstellixCredentials } from '../utils/userSettings';
+import { listRecords, getDomainId } from '../utils/constellixApi';
+import { useCredentials } from '../context/CredentialsContext';
 
 type ScanPhase = 'input' | 'scanning' | 'results';
 
-export default function SecurityScanner() {
+interface SecurityScannerProps {
+  presetDomain?: string;
+}
+
+export default function SecurityScanner({ presetDomain }: SecurityScannerProps = {}) {
   const [phase, setPhase] = useState<ScanPhase>('input');
-  const [domain, setDomain] = useState('');
+  const [domain, setDomain] = useState(presetDomain || '');
   const [domainId, setDomainId] = useState<number | null>(null);
-  const [creds, setCreds] = useState<ConstellixCredsType | null>(null);
-  const [credsLoading, setCredsLoading] = useState(true);
+  const { credentials: creds, loading: credsLoading } = useCredentials();
   const [progress, setProgress] = useState<ScanProgress | null>(null);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,18 +37,6 @@ export default function SecurityScanner() {
     approvedVerifications: [],
   });
   const [showApprovedEditor, setShowApprovedEditor] = useState(false);
-
-  // Load saved credentials
-  useEffect(() => {
-    setCredsLoading(true);
-    getConstellixCredentials()
-      .then(saved => {
-        if (saved) {
-          setCreds(saved);
-        }
-      })
-      .finally(() => setCredsLoading(false));
-  }, []);
 
   // Load approved list when domain changes
   useEffect(() => {
@@ -188,7 +179,7 @@ export default function SecurityScanner() {
           <span className="creds-ok">Constellix API credentials configured</span>
         ) : (
           <span className="creds-missing">
-            No Constellix credentials configured. <a href="#" onClick={(e) => { e.preventDefault(); window.dispatchEvent(new CustomEvent('navigate-tab', { detail: 'settings' })); }}>Go to Settings</a> to add your API keys.
+            No Constellix credentials configured. <a href="#/settings">Go to Settings</a> to add your API keys.
           </span>
         )}
       </div>
