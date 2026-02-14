@@ -24,7 +24,8 @@ export default function ZoneFileImport({ onImport, onManageDomain }: ZoneFileImp
   const [discovering, setDiscovering] = useState(false);
   const [discoveryError, setDiscoveryError] = useState('');
   const [discoveredRecords, setDiscoveredRecords] = useState<DiscoveredRecord[]>([]);
-  const [discoveryStats, setDiscoveryStats] = useState<{ checked: number } | null>(null);
+  const [discoveryStats, setDiscoveryStats] = useState<{ checked: number; servers: number; totalFound: number } | null>(null);
+  const [discoveryProgress, setDiscoveryProgress] = useState('');
 
   function handleDragOver(e: DragEvent) {
     e.preventDefault();
@@ -70,32 +71,89 @@ export default function ZoneFileImport({ onImport, onManageDomain }: ZoneFileImp
     setDiscoveryError('');
     setDiscoveredRecords([]);
     setDiscoveryStats(null);
+    setDiscoveryProgress('');
 
-    try {
-      const res = await fetch('/api/dns/query', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nameserver: discoveryNS.trim(),
-          domain: discoveryDomain.trim(),
-          discover: true,
-        }),
-        credentials: 'include',
-      });
+    // Parse multiple nameservers (comma, newline, or space separated)
+    const nameservers = discoveryNS
+      .split(/[,\n\s]+/)
+      .map(ns => ns.trim())
+      .filter(ns => ns.length > 0);
 
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-
-      setDiscoveredRecords(data.records || []);
-      setDiscoveryStats({ checked: data.subdomainsChecked || 0 });
-    } catch (err) {
-      setDiscoveryError((err as Error).message);
-    } finally {
+    if (nameservers.length === 0) {
+      setDiscoveryError('No valid nameservers provided');
       setDiscovering(false);
+      return;
     }
+
+    const allRecords: DiscoveredRecord[] = [];
+    const errors: string[] = [];
+    let totalChecked = 0;
+
+    for (let i = 0; i < nameservers.length; i++) {
+      const ns = nameservers[i];
+      setDiscoveryProgress(`Querying ${ns} (${i + 1}/${nameservers.length})...`);
+
+      try {
+        const res = await fetch('/api/dns/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nameserver: ns,
+            domain: discoveryDomain.trim(),
+            discover: true,
+          }),
+          credentials: 'include',
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          errors.push(`${ns}: ${data.error || `HTTP ${res.status}`}`);
+          continue;
+        }
+
+        totalChecked += data.subdomainsChecked || 0;
+        if (data.records) {
+          allRecords.push(...data.records);
+        }
+      } catch (err) {
+        errors.push(`${ns}: ${(err as Error).message}`);
+      }
+    }
+
+    // Deduplicate records (same name + type + value)
+    const seen = new Set<string>();
+    const uniqueRecords = allRecords.filter(rec => {
+      const key = `${rec.name}|${rec.type}|${rec.value}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    // Sort by name, then type
+    uniqueRecords.sort((a, b) => {
+      const aName = a.name === '@' ? '' : a.name;
+      const bName = b.name === '@' ? '' : b.name;
+      if (aName !== bName) return aName.localeCompare(bName);
+      return a.type.localeCompare(b.type);
+    });
+
+    setDiscoveredRecords(uniqueRecords);
+    setDiscoveryStats({
+      checked: totalChecked,
+      servers: nameservers.length,
+      totalFound: allRecords.length,
+    });
+    setDiscoveryProgress('');
+
+    if (errors.length > 0 && uniqueRecords.length === 0) {
+      setDiscoveryError(errors.join('; '));
+    } else if (errors.length > 0) {
+      // Partial success - show warning but don't block
+      setDiscoveryError(`Warning: ${errors.join('; ')}`);
+    }
+
+    setDiscovering(false);
   }
 
   function handleImportDiscovered() {
@@ -179,15 +237,16 @@ export default function ZoneFileImport({ onImport, onManageDomain }: ZoneFileImp
 
       <div className="dns-discovery-section">
         <p className="discovery-help">
-          Query an old nameserver directly to discover all DNS records, even if the domain's
-          NS no longer points there. Useful when migrating from a provider that doesn't export zone files.
+          Query old nameservers directly to discover all DNS records, even if the domain's
+          NS no longer points there. Enter multiple nameservers (comma or newline separated) to
+          query all and get deduplicated results.
         </p>
         <div className="discovery-inputs">
           <div className="form-field">
-            <label>Old Nameserver</label>
+            <label>Nameserver(s)</label>
             <input
               type="text"
-              placeholder="ns1.netsol.com"
+              placeholder="ns1.netsol.com, ns1.fastcomet.com"
               value={discoveryNS}
               onChange={(e) => setDiscoveryNS(e.target.value)}
             />
@@ -215,12 +274,15 @@ export default function ZoneFileImport({ onImport, onManageDomain }: ZoneFileImp
           </button>
         </div>
 
+        {discoveryProgress && <p className="discovery-progress">{discoveryProgress}</p>}
+
         {discoveryError && <p className="error-text">{discoveryError}</p>}
 
         {discoveryStats && (
           <p className="discovery-stats">
-            Checked {discoveryStats.checked} subdomains, found{' '}
-            <strong>{discoveredRecords.length}</strong> records
+            Queried {discoveryStats.servers} nameserver{discoveryStats.servers !== 1 ? 's' : ''},{' '}
+            checked {discoveryStats.checked} subdomains, found {discoveryStats.totalFound} records{' '}
+            → <strong>{discoveredRecords.length}</strong> unique after deduplication
           </p>
         )}
 

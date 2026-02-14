@@ -2321,6 +2321,12 @@ h3 {
   border-color: var(--blue);
 }
 
+.discovery-progress {
+  color: var(--blue-bright);
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
 .discovery-stats {
   color: var(--text-secondary);
   font-size: 0.85rem;
