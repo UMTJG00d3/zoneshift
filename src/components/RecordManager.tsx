@@ -596,7 +596,15 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
                             </span>
                           </td>
                           <td>{rec.ttl}</td>
-                          <td className="value-cell">{rec.value}</td>
+                          <td className="value-cell">
+                            {rec.values ? (
+                              <div className="multi-value">
+                                {rec.values.map((v, vi) => (
+                                  <div key={vi} className="multi-value-row">{v}</div>
+                                ))}
+                              </div>
+                            ) : rec.value}
+                          </td>
                           <td className="action-cell">
                             <button
                               className="btn-icon"

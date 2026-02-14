@@ -334,6 +334,26 @@ h4 {
   font-size: 0.78rem;
 }
 
+.value-cell:has(.multi-value) {
+  white-space: normal;
+  overflow: visible;
+}
+
+.multi-value {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.multi-value-row {
+  padding: 0.15rem 0.4rem;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
+  border-left: 2px solid var(--accent-blue);
+  font-size: 0.75rem;
+  word-break: break-all;
+}
+
 /* Record type badges */
 .badge {
   display: inline-block;

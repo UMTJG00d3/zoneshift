@@ -212,6 +212,8 @@ export interface ConstellixRecord {
   type: string;
   ttl: number;
   value: string;
+  // Individual roundRobin values for multi-value records
+  values?: string[];
   // Raw data from API for updates
   rawData?: unknown;
 }
@@ -279,12 +281,17 @@ export async function listRecords(
       for (const rec of res.data) {
         const r = rec as { id: number; name: string; ttl: number; roundRobin?: Array<{ value: string; level?: number }>; host?: string };
         let value = '';
+        let values: string[] | undefined;
 
         if (r.roundRobin && r.roundRobin.length > 0) {
-          value = r.roundRobin.map((rr) => {
+          const mapped = r.roundRobin.map((rr) => {
             if (rr.level !== undefined) return `${rr.level} ${rr.value}`;
             return rr.value;
-          }).join(', ');
+          });
+          value = mapped.join(', ');
+          if (mapped.length > 1) {
+            values = mapped;
+          }
         } else if (r.host) {
           value = r.host;
         }
@@ -295,6 +302,7 @@ export async function listRecords(
           type: type.toUpperCase(),
           ttl: r.ttl,
           value,
+          values,
           rawData: rec,
         });
       }
