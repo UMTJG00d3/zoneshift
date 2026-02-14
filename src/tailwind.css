@@ -27,6 +27,6 @@
   --font-mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
 
   /* Sidebar widths */
-  --spacing-sidebar-collapsed: 60px;
+  --spacing-sidebar-collapsed: 64px;
   --spacing-sidebar-expanded: 220px;
 }
