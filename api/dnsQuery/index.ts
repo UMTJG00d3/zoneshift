@@ -124,6 +124,40 @@ const COMMON_SUBDOMAINS = [
 
 const RECORD_TYPES = ["A", "AAAA", "MX", "TXT", "CNAME", "NS", "SRV", "CAA"];
 
+// Cache resolved nameserver IPs
+const nsIpCache = new Map<string, string>();
+
+async function resolveNameserverToIp(nameserver: string): Promise<string> {
+  const ns = nameserver.toLowerCase().trim();
+
+  // If it's already an IP, return it
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ns)) {
+    return ns;
+  }
+
+  // Check cache
+  if (nsIpCache.has(ns)) {
+    return nsIpCache.get(ns)!;
+  }
+
+  // Resolve using system DNS
+  return new Promise((resolve, reject) => {
+    dns.resolve4(ns, (err, addresses) => {
+      if (err) {
+        reject(new Error(`Cannot resolve nameserver ${ns}: ${err.message}`));
+        return;
+      }
+      if (!addresses || addresses.length === 0) {
+        reject(new Error(`No IP addresses found for nameserver ${ns}`));
+        return;
+      }
+      const ip = addresses[0];
+      nsIpCache.set(ns, ip);
+      resolve(ip);
+    });
+  });
+}
+
 const dnsQuery: AzureFunction = async function (
   context: Context,
   req: HttpRequest
@@ -200,7 +234,9 @@ const dnsQuery: AzureFunction = async function (
   }
 
   try {
-    const records = await queryDns(nameserver, domain, type.toUpperCase());
+    // Resolve nameserver hostname to IP first
+    const nsIp = await resolveNameserverToIp(nameserver);
+    const records = await queryDns(nsIp, domain, type.toUpperCase());
     context.res = {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -233,6 +269,14 @@ async function discoverAllRecords(
   const errors: string[] = [];
   const cleanDomain = domain.replace(/\.$/, '');
 
+  // Resolve nameserver to IP first
+  let nsIp: string;
+  try {
+    nsIp = await resolveNameserverToIp(nameserver);
+  } catch (err) {
+    return { records: [], subdomainsChecked: 0, errors: [(err as Error).message] };
+  }
+
   // Build list of FQDNs to query
   const fqdns: string[] = [];
   for (const sub of COMMON_SUBDOMAINS) {
@@ -252,7 +296,7 @@ async function discoverAllRecords(
       batch.map(async (fqdn) => {
         for (const type of RECORD_TYPES) {
           try {
-            const records = await queryDns(nameserver, fqdn, type);
+            const records = await queryDns(nsIp, fqdn, type);
             for (const r of records) {
               // Convert to relative name
               let name = r.name;
@@ -296,13 +340,13 @@ async function discoverAllRecords(
 }
 
 async function queryDns(
-  nameserver: string,
+  nameserverIp: string,
   domain: string,
   type: string
 ): Promise<DnsRecord[]> {
   return new Promise((resolve, reject) => {
     const resolver = new dns.Resolver();
-    resolver.setServers([nameserver]);
+    resolver.setServers([nameserverIp]);
 
     switch (type) {
       case "A":
