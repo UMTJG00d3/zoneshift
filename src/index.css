@@ -2275,3 +2275,134 @@ h3 {
     gap: 0.5rem;
   }
 }
+
+/* DNS Discovery */
+.dns-discovery-section {
+  margin: 1rem 0;
+}
+
+.discovery-help {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.discovery-inputs {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+}
+
+.discovery-inputs .form-field {
+  flex: 1;
+}
+
+.discovery-inputs .form-field label {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  margin-bottom: 0.25rem;
+}
+
+.discovery-inputs .form-field input {
+  width: 100%;
+  padding: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+}
+
+.discovery-inputs .form-field input:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
+.discovery-stats {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.discovered-records {
+  margin-top: 1rem;
+}
+
+.discovered-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.discovered-header h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.discovered-table-container {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.discovered-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.discovered-table th,
+.discovered-table td {
+  padding: 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.discovered-table th {
+  background: var(--bg-tertiary);
+  position: sticky;
+  top: 0;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.discovered-table tr:hover {
+  background: var(--bg-secondary);
+}
+
+.discovered-table .value-cell {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.discovered-table .value-cell:hover {
+  white-space: normal;
+  word-break: break-all;
+}
+
+.btn-sm {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 640px) {
+  .discovery-inputs {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .discovered-header {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+}

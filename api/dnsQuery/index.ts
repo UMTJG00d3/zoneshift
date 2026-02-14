@@ -4,7 +4,8 @@ import * as dns from "dns";
 interface QueryRequest {
   nameserver: string;
   domain: string;
-  type: string;
+  type?: string;         // Optional for single query
+  discover?: boolean;    // If true, query all common subdomains and types
 }
 
 interface DnsRecord {
@@ -14,22 +15,131 @@ interface DnsRecord {
   value: string;
 }
 
+// Common subdomains to check during discovery
+const COMMON_SUBDOMAINS = [
+  '@',          // apex
+  'www',
+  'mail',
+  'ftp',
+  'cpanel',
+  'webmail',
+  'webdisk',
+  'whm',
+  'autodiscover',
+  'autoconfig',
+  'pop',
+  'pop3',
+  'imap',
+  'smtp',
+  'remote',
+  'vpn',
+  'portal',
+  'admin',
+  'api',
+  'app',
+  'dev',
+  'staging',
+  'test',
+  'blog',
+  'shop',
+  'store',
+  'cdn',
+  'static',
+  'assets',
+  'img',
+  'images',
+  'media',
+  'files',
+  'docs',
+  'support',
+  'help',
+  'status',
+  'm',
+  'mobile',
+  'ns1',
+  'ns2',
+  'dns',
+  'mx',
+  'mx1',
+  'mx2',
+  'relay',
+  'gateway',
+  'secure',
+  'login',
+  'sso',
+  'auth',
+  'calendar',
+  'meet',
+  'conference',
+  'video',
+  'cloud',
+  'backup',
+  'db',
+  'sql',
+  'mysql',
+  'postgres',
+  'redis',
+  'cache',
+  'search',
+  'elk',
+  'monitor',
+  'metrics',
+  'grafana',
+  'prometheus',
+  'jenkins',
+  'gitlab',
+  'git',
+  'ci',
+  'deploy',
+  'k8s',
+  'kubernetes',
+  'docker',
+  'registry',
+  'cpcontacts',
+  'cpcalendars',
+  '_dmarc',
+  'selector1._domainkey',
+  'selector2._domainkey',
+  'default._domainkey',
+  'google._domainkey',
+  'k1._domainkey',
+  '_domainkey',
+  'enterpriseregistration',
+  'enterpriseenrollment',
+  'lyncdiscover',
+  'sip',
+  '_sipfederationtls._tcp',
+  '_sip._tls',
+  '_autodiscover._tcp',
+  '_caldav._tcp',
+  '_caldavs._tcp',
+  '_carddav._tcp',
+  '_carddavs._tcp',
+  '_imap._tcp',
+  '_imaps._tcp',
+  '_pop3._tcp',
+  '_pop3s._tcp',
+  '_submission._tcp',
+];
+
+const RECORD_TYPES = ["A", "AAAA", "MX", "TXT", "CNAME", "NS", "SRV", "CAA"];
+
 const dnsQuery: AzureFunction = async function (
   context: Context,
   req: HttpRequest
 ): Promise<void> {
   const payload = req.body as QueryRequest;
 
-  if (!payload?.nameserver || !payload?.domain || !payload?.type) {
+  if (!payload?.nameserver || !payload?.domain) {
     context.res = {
       status: 400,
       headers: { "Content-Type": "application/json" },
-      body: { success: false, error: "Missing required fields: nameserver, domain, type" },
+      body: { success: false, error: "Missing required fields: nameserver, domain" },
     };
     return;
   }
 
-  const { nameserver, domain, type } = payload;
+  const { nameserver, domain, type, discover } = payload;
 
   // Validate inputs
   if (!/^[a-zA-Z0-9.-]+$/.test(nameserver) || !/^[a-zA-Z0-9.-]+$/.test(domain)) {
@@ -37,6 +147,44 @@ const dnsQuery: AzureFunction = async function (
       status: 400,
       headers: { "Content-Type": "application/json" },
       body: { success: false, error: "Invalid nameserver or domain" },
+    };
+    return;
+  }
+
+  // Discovery mode: query all common subdomains and types
+  if (discover) {
+    try {
+      const result = await discoverAllRecords(nameserver, domain);
+      context.res = {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+        body: {
+          success: true,
+          domain,
+          nameserver,
+          recordCount: result.records.length,
+          records: result.records,
+          subdomainsChecked: result.subdomainsChecked,
+          errors: result.errors.length > 0 ? result.errors : undefined,
+        },
+      };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "DNS discovery failed";
+      context.res = {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+        body: { success: false, error: message },
+      };
+    }
+    return;
+  }
+
+  // Single query mode (original behavior)
+  if (!type) {
+    context.res = {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+      body: { success: false, error: "Missing required field: type (or use discover: true)" },
     };
     return;
   }
@@ -76,6 +224,76 @@ const dnsQuery: AzureFunction = async function (
     };
   }
 };
+
+async function discoverAllRecords(
+  nameserver: string,
+  domain: string
+): Promise<{ records: DnsRecord[]; subdomainsChecked: number; errors: string[] }> {
+  const allRecords: DnsRecord[] = [];
+  const errors: string[] = [];
+  const cleanDomain = domain.replace(/\.$/, '');
+
+  // Build list of FQDNs to query
+  const fqdns: string[] = [];
+  for (const sub of COMMON_SUBDOMAINS) {
+    if (sub === '@') {
+      fqdns.push(cleanDomain);
+    } else {
+      fqdns.push(`${sub}.${cleanDomain}`);
+    }
+  }
+
+  // Query in batches to avoid overwhelming
+  const batchSize = 10;
+  for (let i = 0; i < fqdns.length; i += batchSize) {
+    const batch = fqdns.slice(i, i + batchSize);
+
+    await Promise.all(
+      batch.map(async (fqdn) => {
+        for (const type of RECORD_TYPES) {
+          try {
+            const records = await queryDns(nameserver, fqdn, type);
+            for (const r of records) {
+              // Convert to relative name
+              let name = r.name;
+              if (name === cleanDomain) {
+                name = '@';
+              } else if (name.endsWith('.' + cleanDomain)) {
+                name = name.slice(0, -(cleanDomain.length + 1));
+              }
+              allRecords.push({ ...r, name });
+            }
+          } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : String(err);
+            // ENODATA/ENOTFOUND are normal
+            if (!message.includes("ENODATA") && !message.includes("ENOTFOUND")) {
+              errors.push(`${fqdn} ${type}: ${message}`);
+            }
+          }
+        }
+      })
+    );
+  }
+
+  // Deduplicate
+  const seen = new Set<string>();
+  const uniqueRecords = allRecords.filter((r) => {
+    const key = `${r.name}|${r.type}|${r.value}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  // Sort by name, then type
+  uniqueRecords.sort((a, b) => {
+    const aName = a.name === '@' ? '' : a.name;
+    const bName = b.name === '@' ? '' : b.name;
+    if (aName !== bName) return aName.localeCompare(bName);
+    return a.type.localeCompare(b.type);
+  });
+
+  return { records: uniqueRecords, subdomainsChecked: fqdns.length, errors };
+}
 
 async function queryDns(
   nameserver: string,
