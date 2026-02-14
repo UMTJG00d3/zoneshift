@@ -11,7 +11,170 @@ export interface ParsedZone {
   records: DnsRecord[];
 }
 
+/**
+ * Auto-detect format and parse accordingly
+ */
 export function parseZoneFile(content: string): ParsedZone {
+  // Detect cPanel table paste format (has "Name TTL Type Record" header or multi-line values)
+  const lines = content.trim().split('\n');
+  const firstLine = lines[0]?.toLowerCase() || '';
+
+  // Check for cPanel table header
+  if (firstLine.includes('name') && firstLine.includes('ttl') && firstLine.includes('type') && firstLine.includes('record')) {
+    return parseCPanelPaste(content);
+  }
+
+  // Check for cPanel-style multi-line format (value on separate line)
+  // Look for pattern: name.domain.com.    TTL    TYPE    (with value on next line)
+  const cpanelPattern = /^[\w.-]+\.\s+\d+\s+(A|AAAA|CNAME|MX|TXT|SRV|CAA|NS)\s*$/im;
+  if (cpanelPattern.test(content)) {
+    return parseCPanelPaste(content);
+  }
+
+  // Fall back to BIND zone file parser
+  return parseBINDZoneFile(content);
+}
+
+/**
+ * Parse cPanel web interface copy-paste format
+ * Format: Name/TTL/Type on one line, value on next line(s)
+ */
+function parseCPanelPaste(content: string): ParsedZone {
+  const lines = content.split('\n');
+  const records: DnsRecord[] = [];
+  let origin = '';
+
+  let i = 0;
+
+  // Skip header row if present
+  const firstLine = lines[0]?.toLowerCase() || '';
+  if (firstLine.includes('name') && firstLine.includes('ttl') && firstLine.includes('type')) {
+    i = 1;
+  }
+
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    if (!line) {
+      i++;
+      continue;
+    }
+
+    // Try to parse as record header: name.domain.com.    300    A
+    const headerMatch = line.match(/^([\w._-]+\.[\w.-]+\.?)\s+(\d+)\s+(A|AAAA|CNAME|MX|TXT|SRV|CAA|NS|SPF)\s*$/i);
+
+    if (headerMatch) {
+      const fullName = headerMatch[1].replace(/\.$/, ''); // Remove trailing dot
+      const ttl = parseInt(headerMatch[2], 10);
+      const type = headerMatch[3].toUpperCase();
+
+      // Extract origin from first record if not set
+      if (!origin) {
+        // Find the base domain (last two parts, or last three if TLD is two-part like .co.uk)
+        const parts = fullName.split('.');
+        if (parts.length >= 2) {
+          origin = parts.slice(-2).join('.');
+        }
+      }
+
+      // Convert full name to relative name
+      let name = fullName;
+      if (origin && fullName === origin) {
+        name = '@';
+      } else if (origin && fullName.endsWith('.' + origin)) {
+        name = fullName.slice(0, -(origin.length + 1));
+      }
+
+      // Collect value from subsequent lines
+      i++;
+      let value = '';
+
+      if (type === 'MX') {
+        // MX format: Priority: X \n Destination: mail.example.com
+        let priority = '10';
+        let destination = '';
+        while (i < lines.length) {
+          const valueLine = lines[i].trim();
+          if (!valueLine || valueLine.match(/^[\w._-]+\.[\w.-]+\.?\s+\d+\s+/i)) {
+            break; // Next record or empty
+          }
+          if (valueLine.toLowerCase().startsWith('priority:')) {
+            priority = valueLine.replace(/priority:\s*/i, '').trim();
+          } else if (valueLine.toLowerCase().startsWith('destination:')) {
+            destination = valueLine.replace(/destination:\s*/i, '').trim();
+          }
+          i++;
+        }
+        value = `${priority}\t${destination}`;
+      } else if (type === 'SRV') {
+        // SRV format: Priority: X \n Weight: X \n Port: X \n Target: host
+        let priority = '0', weight = '0', port = '0', target = '';
+        while (i < lines.length) {
+          const valueLine = lines[i].trim();
+          if (!valueLine || valueLine.match(/^[\w._-]+\.[\w.-]+\.?\s+\d+\s+/i)) {
+            break;
+          }
+          if (valueLine.toLowerCase().startsWith('priority:')) {
+            priority = valueLine.replace(/priority:\s*/i, '').trim();
+          } else if (valueLine.toLowerCase().startsWith('weight:')) {
+            weight = valueLine.replace(/weight:\s*/i, '').trim();
+          } else if (valueLine.toLowerCase().startsWith('port:')) {
+            port = valueLine.replace(/port:\s*/i, '').trim();
+          } else if (valueLine.toLowerCase().startsWith('target:')) {
+            target = valueLine.replace(/target:\s*/i, '').trim();
+          }
+          i++;
+        }
+        value = `${priority}\t${weight}\t${port}\t${target}`;
+      } else {
+        // Simple records: value on next line(s), concatenate until next record
+        const valueLines: string[] = [];
+        while (i < lines.length) {
+          const valueLine = lines[i].trim();
+          // Stop if we hit an empty line followed by a record, or a new record header
+          if (!valueLine) {
+            i++;
+            continue;
+          }
+          if (valueLine.match(/^[\w._-]+\.[\w.-]+\.?\s+\d+\s+(A|AAAA|CNAME|MX|TXT|SRV|CAA|NS|SPF)\s*$/i)) {
+            break; // Next record
+          }
+          // Skip "Actions" column artifacts
+          if (valueLine.toLowerCase() === 'actions' || valueLine === '') {
+            i++;
+            continue;
+          }
+          valueLines.push(valueLine);
+          i++;
+        }
+        value = valueLines.join(' ').trim();
+
+        // For TXT records, ensure value is quoted
+        if (type === 'TXT' && value && !value.startsWith('"')) {
+          value = `"${value}"`;
+        }
+      }
+
+      if (value) {
+        records.push({
+          name,
+          ttl,
+          class: 'IN',
+          type,
+          value
+        });
+      }
+    } else {
+      i++;
+    }
+  }
+
+  return { origin, records };
+}
+
+/**
+ * Parse standard BIND zone file format
+ */
+function parseBINDZoneFile(content: string): ParsedZone {
   const lines = content.split('\n');
   let origin = '';
   const records: DnsRecord[] = [];
