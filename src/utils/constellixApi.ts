@@ -318,6 +318,32 @@ export async function addRecord(
   const path = `/domains/${domainId}/records/${typeLower}`;
   const recordName = name === '@' ? '' : name;
 
+  // For roundRobin types, check if a record already exists at this name.
+  // Constellix doesn't allow two records of the same type at the same name —
+  // you must append to the existing record's roundRobin array.
+  if (['a', 'aaaa', 'txt', 'ns'].includes(typeLower)) {
+    const existingRes = await proxyRequest(creds, 'GET', path);
+    if (existingRes.success && Array.isArray(existingRes.data)) {
+      const existing = existingRes.data.find(
+        (r: unknown) => ((r as { name: string }).name || '') === recordName
+      ) as { id: number; name: string; ttl: number; roundRobin: Array<{ value: string; disableFlag?: boolean; level?: number }> } | undefined;
+
+      if (existing) {
+        // Append new value to existing roundRobin
+        const newRoundRobin = [...existing.roundRobin, { value, disableFlag: false }];
+        const updatePath = `${path}/${existing.id}`;
+        const updateBody = {
+          name: recordName,
+          ttl,
+          roundRobin: newRoundRobin,
+        };
+        const updateRes = await proxyRequest(creds, 'PUT', updatePath, updateBody);
+        if (updateRes.success) return { success: true };
+        return { success: false, error: `Failed to append to existing record: HTTP ${updateRes.status}: ${JSON.stringify(updateRes.data)}` };
+      }
+    }
+  }
+
   let body: Record<string, unknown>;
 
   switch (typeLower) {

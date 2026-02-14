@@ -62,10 +62,12 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
 
-  async function loadRecords() {
+  async function loadRecords(preserveMessages = false) {
     setMode('loading');
-    setError('');
-    setSuccessMsg('');
+    if (!preserveMessages) {
+      setError('');
+      setSuccessMsg('');
+    }
 
     // Get domain ID first
     const domainRes = await getDomainId(credentials, domain);
@@ -251,8 +253,8 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
     setApplying(false);
     setApplyProgress(null);
 
-    // Reload records to show updated state
-    await loadRecords();
+    // Reload records to show updated state (preserve error/success messages)
+    await loadRecords(true);
   }
 
   // Check if a record has pending changes
@@ -378,7 +380,7 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
       {successMsg && <p className="success-text">{successMsg}</p>}
 
       {mode === 'idle' && (
-        <button className="btn btn-primary" onClick={loadRecords}>
+        <button className="btn btn-primary" onClick={() => loadRecords()}>
           Load Records from Constellix
         </button>
       )}
@@ -434,7 +436,7 @@ export default function RecordManager({ domain, credentials }: RecordManagerProp
 
           {/* Action Bar */}
           <div className="record-manager-actions">
-            <button className="btn btn-secondary" onClick={loadRecords} disabled={applying}>
+            <button className="btn btn-secondary" onClick={() => loadRecords()} disabled={applying}>
               Refresh
             </button>
             <button className="btn btn-primary" onClick={startAdd} disabled={applying}>
