@@ -201,8 +201,17 @@ export async function analyzeCnameRecords(
 
   const cnameRecords = records.filter(r => r.type === 'CNAME');
 
+  // Trusted namespaces where dangling CNAMEs aren't a takeover risk
+  const trustedTargets = ['.onmicrosoft.com'];
+
   for (const record of cnameRecords) {
     onProgress?.(`Checking CNAME target: ${record.value}...`);
+
+    // Skip targets under trusted namespaces (e.g. MS365 DKIM selectors)
+    const targetLower = record.value.toLowerCase().replace(/\.$/, '');
+    if (trustedTargets.some(t => targetLower.endsWith(t))) {
+      continue;
+    }
 
     try {
       // Check multiple record types — DKIM selectors resolve to TXT, not A
