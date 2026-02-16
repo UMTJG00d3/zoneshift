@@ -12,23 +12,18 @@ import type { MxValidationResult } from '../../utils/mxValidation';
 import { calculateHealthScore } from '../../utils/healthScore';
 import { HealthScoreDetail } from '../common/HealthScore';
 import { fetchDomainScanResult, fetchDomainHistory, formatScanAge, type StoredScanResult } from '../../utils/scanResults';
-
-type SubTab = 'overview' | 'records' | 'security' | 'email' | 'ssl';
+import { ArrowLeft } from 'lucide-react';
+import { Button } from '../ui/button';
+import { Card } from '../ui/card';
+import { Badge } from '../ui/badge';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
+import { cn } from '../../lib/utils';
 
 interface DomainDetailPageProps {
   domain: string;
 }
 
-const SUB_TABS: { key: SubTab; label: string }[] = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'records', label: 'Records' },
-  { key: 'security', label: 'Security' },
-  { key: 'email', label: 'Email Health' },
-  { key: 'ssl', label: 'SSL' },
-];
-
 export default function DomainDetailPage({ domain }: DomainDetailPageProps) {
-  const [activeTab, setActiveTab] = useState<SubTab>('overview');
   const { credentials, loading: credsLoading } = useCredentials();
   const [emailHealth, setEmailHealth] = useState<EmailHealthResult | null>(null);
   const [sslResult, setSSLResult] = useState<SSLCheckResult | null>(null);
@@ -45,75 +40,77 @@ export default function DomainDetailPage({ domain }: DomainDetailPageProps) {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button
-          className="btn btn-secondary btn-sm"
-          onClick={() => navigate('/domains')}
-        >
-          &larr; Back
-        </button>
-        <h1 className="text-2xl font-bold text-text-primary">{domain}</h1>
+        <Button variant="outline" size="sm" onClick={() => navigate('/domains')}>
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Back
+        </Button>
+        <h1 className="text-2xl font-bold text-foreground">{domain}</h1>
       </div>
 
       {/* Sub-tabs */}
-      <div className="flex gap-1 p-1 bg-surface border border-border rounded-lg">
-        {SUB_TABS.map(tab => (
-          <button
-            key={tab.key}
-            className={`tab-btn ${activeTab === tab.key ? 'tab-btn-active' : ''}`}
-            onClick={() => setActiveTab(tab.key)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs defaultValue="overview">
+        <TabsList className="w-full justify-start">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="records">Records</TabsTrigger>
+          <TabsTrigger value="security">Security</TabsTrigger>
+          <TabsTrigger value="email">Email Health</TabsTrigger>
+          <TabsTrigger value="ssl">SSL</TabsTrigger>
+        </TabsList>
 
-      {/* Tab Content */}
-      <div>
-        {activeTab === 'overview' && (
-          <OverviewTab domain={domain} emailHealth={emailHealth} sslResult={sslResult} mxResult={mxResult} storedScan={storedScan} scanHistory={scanHistory} onNavigateTab={setActiveTab} />
-        )}
+        <TabsContent value="overview">
+          <OverviewTab domain={domain} emailHealth={emailHealth} sslResult={sslResult} mxResult={mxResult} storedScan={storedScan} scanHistory={scanHistory} />
+        </TabsContent>
 
-        {activeTab === 'records' && (
-          <div>
-            {credsLoading ? (
-              <p className="text-text-muted">Loading credentials...</p>
-            ) : !credentials ? (
-              <div className="bg-surface border border-border rounded-lg p-4 text-text-secondary">
+        <TabsContent value="records">
+          {credsLoading ? (
+            <p className="text-muted-foreground">Loading credentials...</p>
+          ) : !credentials ? (
+            <Card className="p-4">
+              <p className="text-muted-foreground">
                 No Constellix credentials configured.{' '}
-                <a href="#/settings" className="text-accent-blue underline">Go to Settings</a>{' '}
+                <a href="#/settings" className="text-primary underline">Go to Settings</a>{' '}
                 to add your API keys.
-              </div>
-            ) : (
-              <RecordManager domain={domain} credentials={credentials} />
-            )}
-          </div>
-        )}
+              </p>
+            </Card>
+          ) : (
+            <RecordManager domain={domain} credentials={credentials} />
+          )}
+        </TabsContent>
 
-        {activeTab === 'security' && (
+        <TabsContent value="security">
           <SecurityScanner presetDomain={domain} />
-        )}
+        </TabsContent>
 
-        {activeTab === 'email' && (
+        <TabsContent value="email">
           <div className="flex flex-col gap-6">
             <EmailHealthPanel domain={domain} onResult={setEmailHealth} />
             <BlacklistPanel domain={domain} onResult={setMxResult} />
           </div>
-        )}
+        </TabsContent>
 
-        {activeTab === 'ssl' && (
+        <TabsContent value="ssl">
           <SSLPanel domain={domain} onResult={setSSLResult} />
-        )}
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
 
 function severityColor(severity: Severity): string {
   switch (severity) {
-    case 'pass': return 'text-accent-green';
-    case 'warn': return 'text-accent-yellow';
-    case 'fail': return 'text-accent-red';
-    case 'info': return 'text-text-muted';
+    case 'pass': return 'text-emerald-600 dark:text-emerald-400';
+    case 'warn': return 'text-amber-600 dark:text-amber-400';
+    case 'fail': return 'text-red-600 dark:text-red-400';
+    case 'info': return 'text-muted-foreground';
+  }
+}
+
+function severityVariant(severity: Severity): 'success' | 'warning' | 'destructive' | 'info' {
+  switch (severity) {
+    case 'pass': return 'success';
+    case 'warn': return 'warning';
+    case 'fail': return 'destructive';
+    case 'info': return 'info';
   }
 }
 
@@ -132,133 +129,128 @@ function mxSeverity(result: MxValidationResult | null): { status: Severity; labe
   return { status: result.overallStatus as Severity, label: result.hosts.length > 0 ? `${result.hosts.length} MX` : 'No MX' };
 }
 
-function OverviewTab({ domain, emailHealth, sslResult, mxResult, storedScan, scanHistory, onNavigateTab }: {
+function OverviewTab({ domain, emailHealth, sslResult, mxResult, storedScan, scanHistory }: {
   domain: string;
   emailHealth: EmailHealthResult | null;
   sslResult: SSLCheckResult | null;
   mxResult: MxValidationResult | null;
   storedScan: StoredScanResult | null;
   scanHistory: StoredScanResult[];
-  onNavigateTab: (tab: SubTab) => void;
 }) {
   const emailSummary = getEmailHealthSummary(emailHealth);
   const blSummary = mxSeverity(mxResult);
   const hasLiveData = emailHealth || sslResult || mxResult;
   const breakdown = hasLiveData ? calculateHealthScore(emailHealth, sslResult, mxResult) : null;
 
-  // Use stored scan data for status cards when live data hasn't loaded yet
-  const statusCards: { label: string; status: string; severity: Severity; tab?: SubTab }[] = hasLiveData ? [
-    { label: 'SPF', status: emailSummary.spf.label, severity: emailSummary.spf.status, tab: 'email' },
-    { label: 'DKIM', status: emailSummary.dkim.label, severity: emailSummary.dkim.status, tab: 'email' },
-    { label: 'DMARC', status: emailSummary.dmarc.label, severity: emailSummary.dmarc.status, tab: 'email' },
-    {
-      label: 'SSL',
-      status: sslResult ? sslResult.statusLabel : 'Not scanned',
-      severity: sslSeverity(sslResult),
-      tab: 'ssl',
-    },
-    { label: 'Blacklist', status: blSummary.label, severity: blSummary.status, tab: 'email' },
+  const statusCards: { label: string; status: string; severity: Severity }[] = hasLiveData ? [
+    { label: 'SPF', status: emailSummary.spf.label, severity: emailSummary.spf.status },
+    { label: 'DKIM', status: emailSummary.dkim.label, severity: emailSummary.dkim.status },
+    { label: 'DMARC', status: emailSummary.dmarc.label, severity: emailSummary.dmarc.status },
+    { label: 'SSL', status: sslResult ? sslResult.statusLabel : 'Not scanned', severity: sslSeverity(sslResult) },
+    { label: 'Blacklist', status: blSummary.label, severity: blSummary.status },
   ] : storedScan ? [
-    { label: 'SPF', status: storedScan.spfFound ? storedScan.spfQualifier : 'Not found', severity: storedScan.spfStatus as Severity, tab: 'email' as SubTab },
-    { label: 'DKIM', status: 'Run live scan', severity: 'info' as Severity, tab: 'email' as SubTab },
-    { label: 'DMARC', status: storedScan.dmarcFound ? (storedScan.dmarcPolicy || 'Found') : 'Not found', severity: storedScan.dmarcStatus as Severity, tab: 'email' as SubTab },
-    { label: 'SSL', status: storedScan.sslStatus, severity: storedScan.sslStatus === 'valid' ? 'pass' as Severity : storedScan.sslStatus === 'expiring' ? 'warn' as Severity : 'fail' as Severity, tab: 'ssl' as SubTab },
-    { label: 'MX', status: storedScan.mxCount > 0 ? `${storedScan.mxCount} records` : 'None', severity: storedScan.mxCount > 0 ? 'pass' as Severity : 'warn' as Severity, tab: 'email' as SubTab },
+    { label: 'SPF', status: storedScan.spfFound ? storedScan.spfQualifier : 'Not found', severity: storedScan.spfStatus as Severity },
+    { label: 'DKIM', status: 'Run live scan', severity: 'info' as Severity },
+    { label: 'DMARC', status: storedScan.dmarcFound ? (storedScan.dmarcPolicy || 'Found') : 'Not found', severity: storedScan.dmarcStatus as Severity },
+    { label: 'SSL', status: storedScan.sslStatus, severity: storedScan.sslStatus === 'valid' ? 'pass' as Severity : storedScan.sslStatus === 'expiring' ? 'warn' as Severity : 'fail' as Severity },
+    { label: 'MX', status: storedScan.mxCount > 0 ? `${storedScan.mxCount} records` : 'None', severity: storedScan.mxCount > 0 ? 'pass' as Severity : 'warn' as Severity },
   ] : [
-    { label: 'SPF', status: 'Not scanned', severity: 'info' as Severity, tab: 'email' as SubTab },
-    { label: 'DKIM', status: 'Not scanned', severity: 'info' as Severity, tab: 'email' as SubTab },
-    { label: 'DMARC', status: 'Not scanned', severity: 'info' as Severity, tab: 'email' as SubTab },
-    { label: 'SSL', status: 'Not scanned', severity: 'info' as Severity, tab: 'ssl' as SubTab },
-    { label: 'Blacklist', status: 'Not scanned', severity: 'info' as Severity, tab: 'email' as SubTab },
+    { label: 'SPF', status: 'Not scanned', severity: 'info' as Severity },
+    { label: 'DKIM', status: 'Not scanned', severity: 'info' as Severity },
+    { label: 'DMARC', status: 'Not scanned', severity: 'info' as Severity },
+    { label: 'SSL', status: 'Not scanned', severity: 'info' as Severity },
+    { label: 'Blacklist', status: 'Not scanned', severity: 'info' as Severity },
   ];
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Health Score — live or stored */}
+    <div className="flex flex-col gap-6 mt-4">
+      {/* Health Score */}
       {breakdown ? (
         <HealthScoreDetail breakdown={breakdown} />
       ) : storedScan ? (
-        <div className="bg-surface border border-border rounded-lg p-4 shadow-sm">
+        <Card className="p-4">
           <div className="flex items-center gap-4">
             <div className="flex flex-col items-center">
-              <div className={`text-3xl font-bold ${storedScan.healthScore >= 70 ? 'text-accent-green' : storedScan.healthScore >= 50 ? 'text-accent-yellow' : 'text-accent-red'}`}>
+              <div className={cn(
+                "text-3xl font-bold",
+                storedScan.healthScore >= 70 ? 'text-emerald-500' : storedScan.healthScore >= 50 ? 'text-amber-500' : 'text-red-500'
+              )}>
                 {storedScan.healthScore}
               </div>
-              <div className="text-text-muted text-xs">Health Score</div>
+              <div className="text-muted-foreground text-xs">Health Score</div>
             </div>
-            <div className="text-text-secondary text-sm">
+            <div className="text-muted-foreground text-sm">
               <div>From automated scan {formatScanAge(storedScan.scannedAt)}</div>
-              <div className="text-text-muted text-xs mt-1">Navigate to tabs for live results</div>
+              <div className="text-xs mt-1">Navigate to tabs for live results</div>
             </div>
           </div>
-        </div>
+        </Card>
       ) : (
-        <div className="bg-surface border border-border rounded-lg p-4 shadow-sm text-text-muted text-sm">
-          No scan data available. Visit the Email Health or SSL tabs to run a live scan.
-        </div>
+        <Card className="p-4">
+          <p className="text-muted-foreground text-sm">
+            No scan data available. Visit the Email Health or SSL tabs to run a live scan.
+          </p>
+        </Card>
       )}
 
       {/* Status cards grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {statusCards.map(card => {
-          const accentBorder = card.severity === 'pass' ? 'border-l-accent-green'
-            : card.severity === 'warn' ? 'border-l-accent-yellow'
-            : card.severity === 'fail' ? 'border-l-accent-red'
-            : 'border-l-accent-blue';
-          return (
-            <div
-              key={card.label}
-              className={`bg-surface border border-border border-l-4 ${accentBorder} rounded-lg p-3 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.3)] transition-all duration-200 ${card.tab ? 'cursor-pointer hover:shadow-[0_10px_15px_-3px_rgba(0,0,0,0.4)] hover:-translate-y-px' : ''}`}
-              onClick={() => card.tab && onNavigateTab(card.tab)}
-            >
-              <div className="text-text-muted text-[10px] font-semibold uppercase tracking-wider mb-1.5">
-                {card.label}
-              </div>
-              <div className={`text-sm font-medium ${severityColor(card.severity)}`}>
-                {card.status ?? card.label}
-              </div>
+        {statusCards.map(card => (
+          <Card
+            key={card.label}
+            className={cn(
+              "p-3 border-l-4 hover-lift cursor-default",
+              card.severity === 'pass' ? 'border-l-emerald-500' :
+              card.severity === 'warn' ? 'border-l-amber-500' :
+              card.severity === 'fail' ? 'border-l-red-500' :
+              'border-l-primary'
+            )}
+          >
+            <div className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wider mb-1.5">
+              {card.label}
             </div>
-          );
-        })}
+            <div className={cn("text-sm font-medium", severityColor(card.severity))}>
+              {card.status ?? card.label}
+            </div>
+          </Card>
+        ))}
       </div>
 
       {/* Score history trend */}
       {scanHistory.length > 1 && (
-        <div className="bg-surface border border-border rounded-lg p-4 shadow-sm">
-          <h3 className="text-sm font-semibold mb-3">Score History</h3>
+        <Card className="p-4">
+          <h3 className="text-sm font-semibold mb-3 text-foreground">Score History</h3>
           <div className="flex items-end gap-1 h-16">
             {scanHistory.slice(0, 14).reverse().map((scan, i) => {
               const height = Math.max(4, (scan.healthScore / 100) * 100);
-              const color = scan.healthScore >= 70 ? 'bg-accent-green' : scan.healthScore >= 50 ? 'bg-accent-yellow' : 'bg-accent-red';
+              const color = scan.healthScore >= 70 ? 'bg-emerald-500' : scan.healthScore >= 50 ? 'bg-amber-500' : 'bg-red-500';
               return (
                 <div
                   key={i}
-                  className={`flex-1 rounded-t ${color} opacity-80 hover:opacity-100 transition-opacity`}
+                  className={cn("flex-1 rounded-t opacity-80 hover:opacity-100 transition-opacity", color)}
                   style={{ height: `${height}%` }}
                   title={`${scan.healthScore} — ${new Date(scan.scannedAt).toLocaleDateString()}`}
                 />
               );
             })}
           </div>
-          <div className="flex justify-between text-text-muted text-[10px] mt-1">
+          <div className="flex justify-between text-muted-foreground text-[10px] mt-1">
             <span>{scanHistory.length > 1 ? formatScanAge(scanHistory[scanHistory.length - 1].scannedAt) : ''}</span>
             <span>{formatScanAge(scanHistory[0].scannedAt)}</span>
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Domain info */}
-      <div className="bg-surface border border-border rounded-lg p-4 shadow-sm">
-        <h3 className="text-sm font-semibold mb-2">Domain Info</h3>
-        <div className="text-text-secondary text-sm">
+      <Card className="p-4">
+        <h3 className="text-sm font-semibold mb-2 text-foreground">Domain Info</h3>
+        <div className="text-muted-foreground text-sm">
           <span className="font-mono">{domain}</span>
           {storedScan && (
-            <span className="text-text-muted text-xs ml-3">Last automated scan: {new Date(storedScan.scannedAt).toLocaleString()}</span>
+            <span className="text-xs ml-3">Last automated scan: {new Date(storedScan.scannedAt).toLocaleString()}</span>
           )}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
-
-

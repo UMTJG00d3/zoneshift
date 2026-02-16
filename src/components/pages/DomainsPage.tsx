@@ -6,6 +6,12 @@ import { navigate } from '../../utils/router';
 import { validateSpf, validateDmarc, type Severity } from '../../utils/emailAuthValidation';
 import { fetchAllScanResults, formatScanAge, type StoredScanResult } from '../../utils/scanResults';
 import { HealthScoreBadge } from '../common/HealthScore';
+import { Search, RefreshCw, Plus } from 'lucide-react';
+import { Button } from '../ui/button';
+import { Card } from '../ui/card';
+import { Badge } from '../ui/badge';
+import { Input } from '../ui/input';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../ui/table';
 
 interface DomainNSInfo {
   nameservers: string[];
@@ -33,7 +39,6 @@ export default function DomainsPage() {
   const [storedScans, setStoredScans] = useState<Record<string, StoredScanResult>>({});
   const [scansLoaded, setScansLoaded] = useState(false);
 
-  // Load stored scan results immediately (no credentials needed)
   useEffect(() => {
     fetchAllScanResults().then(results => {
       const map: Record<string, StoredScanResult> = {};
@@ -102,8 +107,6 @@ export default function DomainsPage() {
       }
     }
     setLoadingNS(false);
-
-    // Start quick email health scan after NS records load
     loadEmailHealth(domainList);
   }
 
@@ -150,8 +153,8 @@ export default function DomainsPage() {
   if (credsLoading) {
     return (
       <div>
-        <h2 className="text-xl font-semibold mb-4">Domains</h2>
-        <p className="text-text-muted">Loading credentials...</p>
+        <h2 className="text-xl font-semibold mb-4 text-foreground">Domains</h2>
+        <p className="text-muted-foreground">Loading credentials...</p>
       </div>
     );
   }
@@ -159,12 +162,14 @@ export default function DomainsPage() {
   if (!credentials) {
     return (
       <div>
-        <h2 className="text-xl font-semibold mb-4">Domains</h2>
-        <div className="bg-surface border border-border rounded-lg p-4 text-text-secondary">
-          No Constellix credentials configured.{' '}
-          <a href="#/settings" className="text-accent-blue underline">Go to Settings</a>{' '}
-          to add your API keys.
-        </div>
+        <h2 className="text-xl font-semibold mb-4 text-foreground">Domains</h2>
+        <Card className="p-4">
+          <p className="text-muted-foreground">
+            No Constellix credentials configured.{' '}
+            <a href="#/settings" className="text-primary underline">Go to Settings</a>{' '}
+            to add your API keys.
+          </p>
+        </Card>
       </div>
     );
   }
@@ -174,140 +179,135 @@ export default function DomainsPage() {
       {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary">Domains</h1>
-          <p className="mt-1 text-sm text-text-muted">Manage DNS records and monitor domain health</p>
+          <h1 className="text-2xl font-bold text-foreground">Domains</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Manage DNS records and monitor domain health</p>
         </div>
         <div className="mt-4 sm:mt-0 flex items-center gap-2">
-          <button
-            className="btn btn-secondary"
-            onClick={loadDomains}
-            disabled={loading}
-          >
+          <Button variant="outline" onClick={loadDomains} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             {loading ? 'Loading...' : 'Refresh'}
-          </button>
-          <a href="#/migrate" className="btn btn-primary">
-            Add Domain
-          </a>
+          </Button>
+          <Button asChild>
+            <a href="#/migrate" className="no-underline">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Domain
+            </a>
+          </Button>
         </div>
       </div>
 
-      {/* Search card */}
-      <div className="card p-4">
+      {/* Search */}
+      <Card className="p-4">
         <div className="relative">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none">
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
-          <input
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input
             type="text"
             placeholder="Search domains..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="w-full font-sans text-sm py-2 pl-10 pr-4 bg-surface-dark border border-border rounded-md text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-accent-blue"
+            className="pl-10"
           />
         </div>
-      </div>
+      </Card>
 
-      {loadingNS && <p className="text-text-muted text-xs">Checking NS records...</p>}
-      {error && <p className="text-accent-red text-sm">{error}</p>}
+      {loadingNS && <p className="text-muted-foreground text-xs">Checking NS records...</p>}
+      {error && <p className="text-destructive text-sm">{error}</p>}
 
       {loading && domains.length === 0 && (
-        <p className="text-text-muted">Loading domains...</p>
+        <p className="text-muted-foreground">Loading domains...</p>
       )}
 
       {!loading && domains.length === 0 && !error && (
-        <p className="text-text-muted">No domains found in your Constellix account.</p>
+        <p className="text-muted-foreground">No domains found in your Constellix account.</p>
       )}
 
       {filteredDomains.length > 0 && (
         <div>
           {searchTerm && (
-            <div className="mb-2 text-sm text-text-muted">
+            <div className="mb-2 text-sm text-muted-foreground">
               {filteredDomains.length} of {domains.length} domains shown
             </div>
           )}
-          <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="domain-table">
-              <thead>
-                <tr>
-                  <th>Domain</th>
-                  <th>Health</th>
-                  <th>Status</th>
-                  <th>Email</th>
-                  <th>Current Nameservers</th>
-                  <th>DNS Status</th>
-                </tr>
-              </thead>
-              <tbody>
+          <Card className="overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Domain</TableHead>
+                  <TableHead>Health</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Nameservers</TableHead>
+                  <TableHead>DNS</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {filteredDomains.map(domain => {
                   const ns = nsInfo[domain.name];
                   const scan = storedScans[domain.name];
                   return (
-                    <tr
+                    <TableRow
                       key={domain.id}
-                      className="domain-row"
+                      className="cursor-pointer"
                       onClick={() => navigate(`/domains/${encodeURIComponent(domain.name)}`)}
                     >
-                      <td className="domain-name-cell">
-                        <span className="domain-name">{domain.name}</span>
+                      <TableCell>
+                        <span className="font-medium text-foreground">{domain.name}</span>
                         {scan && (
-                          <span className="text-text-muted text-[10px] ml-2" title={`Last scan: ${scan.scannedAt}`}>
+                          <span className="text-muted-foreground text-[10px] ml-2" title={`Last scan: ${scan.scannedAt}`}>
                             {formatScanAge(scan.scannedAt)}
                           </span>
                         )}
-                      </td>
-                      <td>
+                      </TableCell>
+                      <TableCell>
                         {scan ? (
                           <HealthScoreBadge score={scan.healthScore} size="sm" />
                         ) : scansLoaded ? (
-                          <span className="text-text-muted text-xs">—</span>
+                          <span className="text-muted-foreground text-xs">&mdash;</span>
                         ) : (
-                          <span className="text-text-muted text-xs">...</span>
+                          <span className="text-muted-foreground text-xs">...</span>
                         )}
-                      </td>
-                      <td>
-                        <span className={`domain-status status-${domain.status.toLowerCase()}`}>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={domain.status.toLowerCase() === 'active' ? 'success' : 'secondary'}>
                           {domain.status}
-                        </span>
-                      </td>
-                      <td>
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
                         <EmailQuickBadge info={emailHealth[domain.name]} />
-                      </td>
-                      <td className="ns-cell">
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
                         {ns?.loading ? (
-                          <span className="muted">checking...</span>
+                          <span className="text-muted-foreground">checking...</span>
                         ) : ns?.error ? (
-                          <span className="error-text" title={ns.error}>error</span>
+                          <span className="text-destructive" title={ns.error}>error</span>
                         ) : ns?.nameservers.length ? (
-                          <span className="ns-list-inline" title={ns.nameservers.join('\n')}>
+                          <span title={ns.nameservers.join('\n')}>
                             {ns.nameservers[0]}
                             {ns.nameservers.length > 1 && (
-                              <span className="ns-more">+{ns.nameservers.length - 1}</span>
+                              <span className="ml-1 text-muted-foreground">+{ns.nameservers.length - 1}</span>
                             )}
                           </span>
                         ) : (
-                          <span className="muted">-</span>
+                          <span className="text-muted-foreground">-</span>
                         )}
-                      </td>
-                      <td>
+                      </TableCell>
+                      <TableCell>
                         {ns?.loading ? (
-                          <span className="dns-status dns-status-checking">...</span>
+                          <Badge variant="secondary">...</Badge>
                         ) : ns?.isConstellix ? (
-                          <span className="dns-status dns-status-live">LIVE</span>
+                          <Badge variant="success">LIVE</Badge>
                         ) : ns?.nameservers.length ? (
-                          <span className="dns-status dns-status-notpointed">NOT POINTED</span>
+                          <Badge variant="warning">NOT POINTED</Badge>
                         ) : (
-                          <span className="dns-status dns-status-unknown">?</span>
+                          <Badge variant="secondary">?</Badge>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
-          </div>
+              </TableBody>
+            </Table>
+          </Card>
         </div>
       )}
     </div>
@@ -316,14 +316,14 @@ export default function DomainsPage() {
 
 function EmailQuickBadge({ info }: { info?: DomainEmailQuick }) {
   if (!info || info.loading) {
-    return <span className="text-text-muted text-xs">...</span>;
+    return <span className="text-muted-foreground text-xs">...</span>;
   }
 
-  const colorMap: Record<Severity, string> = {
-    pass: 'bg-accent-green/20 text-accent-green border-accent-green/30',
-    warn: 'bg-accent-yellow/20 text-accent-yellow border-accent-yellow/30',
-    fail: 'bg-accent-red/20 text-accent-red border-accent-red/30',
-    info: 'bg-surface-card/50 text-text-muted border-border',
+  const variantMap: Record<Severity, 'success' | 'warning' | 'destructive' | 'secondary'> = {
+    pass: 'success',
+    warn: 'warning',
+    fail: 'destructive',
+    info: 'secondary',
   };
 
   const iconMap: Record<Severity, string> = {
@@ -331,11 +331,11 @@ function EmailQuickBadge({ info }: { info?: DomainEmailQuick }) {
   };
 
   return (
-    <span
-      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${colorMap[info.overall]}`}
+    <Badge
+      variant={variantMap[info.overall]}
       title={`SPF: ${info.spf}, DMARC: ${info.dmarc}`}
     >
       {iconMap[info.overall]}
-    </span>
+    </Badge>
   );
 }

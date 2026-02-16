@@ -1,5 +1,7 @@
 import { useRoute } from './utils/router';
 import { CredentialsProvider } from './context/CredentialsContext';
+import { ThemeProvider } from './providers/ThemeProvider';
+import { TooltipProvider } from './components/ui/tooltip';
 import Layout from './components/layout/Layout';
 import DomainsPage from './components/pages/DomainsPage';
 import DomainDetailPage from './components/pages/DomainDetailPage';
@@ -10,15 +12,19 @@ export default function App() {
   const route = useRoute();
 
   return (
-    <CredentialsProvider>
-      <Layout route={route}>
-        {route.page === 'domains' && <DomainsPage />}
-        {route.page === 'domain-detail' && (
-          <DomainDetailPage domain={route.params.name} />
-        )}
-        {route.page === 'migrate' && <MigratePage />}
-        {route.page === 'settings' && <SettingsPage />}
-      </Layout>
-    </CredentialsProvider>
+    <ThemeProvider>
+      <TooltipProvider delayDuration={300}>
+        <CredentialsProvider>
+          <Layout route={route}>
+            {route.page === 'domains' && <DomainsPage />}
+            {route.page === 'domain-detail' && (
+              <DomainDetailPage domain={route.params.name} />
+            )}
+            {route.page === 'migrate' && <MigratePage />}
+            {route.page === 'settings' && <SettingsPage />}
+          </Layout>
+        </CredentialsProvider>
+      </TooltipProvider>
+    </ThemeProvider>
   );
 }
