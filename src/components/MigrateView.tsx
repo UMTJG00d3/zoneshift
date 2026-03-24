@@ -170,6 +170,26 @@ export default function MigrateView() {
     setSources(sources.map(s => s.id === id ? { ...s, [field]: value } : s));
   }
 
+  // Domain validation: detect common subdomain prefixes
+  const domainWarning = useMemo(() => {
+    const d = domain.trim().toLowerCase().replace(/\.$/, '');
+    if (!d) return '';
+    const prefixes = ['www.', 'mail.', 'ftp.', 'webmail.', 'cpanel.', 'whm.', 'autodiscover.', 'remote.', 'vpn.', 'ns1.', 'ns2.', 'smtp.', 'pop.', 'imap.'];
+    for (const prefix of prefixes) {
+      if (d.startsWith(prefix)) {
+        const suggested = d.slice(prefix.length);
+        return `This looks like a subdomain. Did you mean "${suggested}"?`;
+      }
+    }
+    // Check for too many dots (e.g., sub.domain.com when they meant domain.com)
+    const parts = d.split('.');
+    if (parts.length > 2 && !d.endsWith('.co.uk') && !d.endsWith('.com.au') && !d.endsWith('.co.nz') && !d.endsWith('.org.uk')) {
+      const suggested = parts.slice(-2).join('.');
+      return `This looks like a subdomain. Did you mean "${suggested}"?`;
+    }
+    return '';
+  }, [domain]);
+
   // Scan all sources
   async function handleScan() {
     const trimmedDomain = domain.trim().replace(/\.$/, '');
@@ -658,7 +678,46 @@ export default function MigrateView() {
               value={domain}
               onChange={e => setDomain(e.target.value)}
               disabled={scanning}
+              style={domainWarning ? { borderColor: 'var(--accent-yellow)' } : undefined}
             />
+            {domainWarning && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.4rem 0.6rem',
+                background: 'rgba(234, 179, 8, 0.1)',
+                border: '1px solid rgba(234, 179, 8, 0.3)',
+                borderRadius: '4px',
+                color: 'var(--accent-yellow)',
+                fontSize: '0.8rem',
+                marginTop: '0.25rem',
+              }}>
+                <span>⚠</span>
+                <span>{domainWarning}</span>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  style={{ marginLeft: 'auto', color: 'var(--accent-yellow)', padding: '0.15rem 0.5rem' }}
+                  onClick={() => {
+                    const d = domain.trim().toLowerCase().replace(/\.$/, '');
+                    const parts = d.split('.');
+                    if (parts.length > 2) {
+                      // Handle ccTLDs
+                      const ccTlds = ['co.uk', 'com.au', 'co.nz', 'org.uk'];
+                      for (const tld of ccTlds) {
+                        if (d.endsWith(tld)) {
+                          setDomain(parts.slice(-(tld.split('.').length + 1)).join('.'));
+                          return;
+                        }
+                      }
+                      setDomain(parts.slice(-2).join('.'));
+                    }
+                  }}
+                >
+                  Fix it
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
