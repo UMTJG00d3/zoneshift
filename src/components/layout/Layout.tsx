@@ -1,4 +1,5 @@
 import { ReactNode, useState, useEffect } from 'react';
+import { cn } from '../../lib/utils';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import { Route } from '../../utils/router';
@@ -9,7 +10,11 @@ interface LayoutProps {
 }
 
 export default function Layout({ route, children }: LayoutProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('sidebar-collapsed') === 'true';
+    } catch { return false; }
+  });
 
   // Sync with sidebar collapsed state from localStorage
   useEffect(() => {
@@ -18,7 +23,6 @@ export default function Layout({ route, children }: LayoutProps) {
         setCollapsed(localStorage.getItem('sidebar-collapsed') === 'true');
       } catch { /* ignore */ }
     }
-    checkCollapsed();
     window.addEventListener('storage', checkCollapsed);
     // Also poll briefly for same-tab changes
     const interval = setInterval(checkCollapsed, 500);
@@ -34,8 +38,10 @@ export default function Layout({ route, children }: LayoutProps) {
       <Sidebar route={route} />
 
       <div
-        className="pt-16 transition-all duration-300 ease-in-out"
-        style={{ paddingLeft: collapsed ? '70px' : '280px' }}
+        className={cn(
+          "pt-16 transition-all duration-300 ease-in-out",
+          collapsed ? "lg:pl-[70px]" : "lg:pl-[280px]"
+        )}
       >
         <main className="py-6">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

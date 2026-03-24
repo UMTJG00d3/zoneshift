@@ -45,7 +45,7 @@ export default function Sidebar({ route }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "hidden lg:fixed lg:inset-y-0 lg:z-20 lg:flex lg:flex-col border-r border-border/50 bg-card/50 backdrop-blur-xl transition-all duration-300 ease-in-out",
+        "hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:flex lg:flex-col border-r border-border/50 bg-card/50 backdrop-blur-xl transition-all duration-300 ease-in-out",
         collapsed ? "lg:w-[70px]" : "lg:w-[280px]"
       )}
       style={{ top: '4rem' }}
