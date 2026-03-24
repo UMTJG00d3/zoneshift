@@ -297,7 +297,21 @@ export default function DomainsPage() {
                         ) : ns?.isConstellix ? (
                           <Badge variant="success">LIVE</Badge>
                         ) : ns?.nameservers.length ? (
-                          <Badge variant="warning">NOT POINTED</Badge>
+                          <div className="group relative inline-block">
+                            <Badge variant="warning" className="cursor-help">NOT POINTED</Badge>
+                            <div className="invisible group-hover:visible absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-3 rounded-lg border border-border bg-popover text-popover-foreground shadow-lg text-xs">
+                              <p className="font-semibold mb-1.5">Update nameservers at your registrar to:</p>
+                              <div className="space-y-0.5 font-mono text-[10px]">
+                                <div>ns11.constellix.com</div>
+                                <div>ns21.constellix.com</div>
+                                <div>ns31.constellix.com</div>
+                                <div>ns41.constellix.com</div>
+                                <div>ns51.constellix.com</div>
+                                <div>ns61.constellix.com</div>
+                              </div>
+                              <p className="mt-1.5 text-muted-foreground">Currently pointed at: {ns.nameservers[0]}</p>
+                            </div>
+                          </div>
                         ) : (
                           <Badge variant="secondary">?</Badge>
                         )}

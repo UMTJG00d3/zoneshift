@@ -116,6 +116,7 @@ export default function MigrateView() {
   const [zoneText, setZoneText] = useState('');
   const [zoneImportMsg, setZoneImportMsg] = useState('');
   const importDialogRef = useRef<HTMLDialogElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Section C: Push plan
   const [pushPhase, setPushPhase] = useState<PushPhase>('idle');
@@ -1039,7 +1040,7 @@ export default function MigrateView() {
 
       {/* Done */}
       {pushPhase === 'done' && (
-        <div className="card">
+        <div className="card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div className={`summary ${execErrors.length === 0 ? 'summary-success' : 'summary-warning'}`}>
             {execErrors.length === 0 ? (
               <span>All {execSuccesses} changes applied successfully.</span>
@@ -1050,7 +1051,42 @@ export default function MigrateView() {
           {execErrors.length > 0 && (
             <PushErrorTable errors={execErrors} />
           )}
-          <div style={{ marginTop: '0.75rem' }}>
+
+          {/* Next Steps: Update NS records at registrar */}
+          <div style={{
+            background: 'rgba(59, 130, 246, 0.08)',
+            border: '1px solid rgba(59, 130, 246, 0.3)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '1rem 1.25rem',
+          }}>
+            <h4 style={{ color: '#60a5fa', marginBottom: '0.5rem' }}>Next Step: Update Nameservers at Your Registrar</h4>
+            <p className="muted" style={{ marginBottom: '0.75rem' }}>
+              Your records are now in Constellix. To complete the migration, log into your domain registrar
+              (GoDaddy, Namecheap, etc.) and update the nameservers for <strong style={{ color: 'var(--text-primary)' }}>{domain}</strong> to:
+            </p>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+              gap: '0.35rem',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.82rem',
+            }}>
+              {['ns11.constellix.com', 'ns21.constellix.com', 'ns31.constellix.com',
+                'ns41.constellix.com', 'ns51.constellix.com', 'ns61.constellix.com'].map(ns => (
+                <span key={ns} style={{
+                  padding: '0.3rem 0.6rem',
+                  background: 'rgba(59, 130, 246, 0.12)',
+                  borderRadius: '4px',
+                  color: 'var(--text-primary)',
+                }}>{ns}</span>
+              ))}
+            </div>
+            <p className="muted" style={{ marginTop: '0.75rem', fontSize: '0.78rem' }}>
+              DNS propagation typically takes 1-48 hours. The Domains page will show <strong>LIVE</strong> once the NS records have propagated.
+            </p>
+          </div>
+
+          <div>
             <button className="btn btn-ghost" onClick={() => setPushPhase('idle')}>
               Back to Curation
             </button>
@@ -1094,9 +1130,37 @@ export default function MigrateView() {
             </button>
           </div>
           <p className="muted" style={{ marginBottom: '0.75rem' }}>
-            Paste DNS records from any source: BIND zone files, cPanel exports, or copy-paste
+            Upload a zone file or paste DNS records from any source: BIND zone files, cPanel exports, or copy-paste
             from a web-based DNS manager (the table columns will be auto-detected).
           </p>
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".txt,.zone,.bind,.db,text/plain"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                  setZoneText(reader.result as string);
+                  setZoneImportMsg('');
+                };
+                reader.onerror = () => setZoneImportMsg('Failed to read file.');
+                reader.readAsText(file);
+                // Reset so same file can be re-selected
+                e.target.value = '';
+              }}
+            />
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              Upload Zone File
+            </button>
+            <span className="muted" style={{ alignSelf: 'center' }}>or paste below</span>
+          </div>
           <textarea
             className="zone-textarea"
             rows={12}
