@@ -15,7 +15,7 @@ import { fetchDomainScanResult, fetchDomainHistory, formatScanAge, type StoredSc
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
-import { Badge } from '../ui/badge';
+
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { cn } from '../../lib/utils';
 
@@ -105,14 +105,6 @@ function severityColor(severity: Severity): string {
   }
 }
 
-function severityVariant(severity: Severity): 'success' | 'warning' | 'destructive' | 'info' {
-  switch (severity) {
-    case 'pass': return 'success';
-    case 'warn': return 'warning';
-    case 'fail': return 'destructive';
-    case 'info': return 'info';
-  }
-}
 
 function sslSeverity(result: SSLCheckResult | null): Severity {
   if (!result) return 'info';

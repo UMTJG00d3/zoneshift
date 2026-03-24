@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Globe, Sun, Moon, Monitor, User } from 'lucide-react';
+import { Globe, Sun, Moon, Monitor } from 'lucide-react';
 import { useTheme } from '../../providers/ThemeProvider';
 import { Button } from '../ui/button';
 import {
